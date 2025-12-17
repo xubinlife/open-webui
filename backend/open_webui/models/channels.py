@@ -3,7 +3,9 @@ import time
 import uuid
 from typing import Optional
 
+# 数据库基类与连接工具
 from open_webui.internal.db import Base, get_db
+# 引入群组模型以便按群组查询成员
 from open_webui.models.groups import Groups
 
 from pydantic import BaseModel, ConfigDict
@@ -19,6 +21,7 @@ from sqlalchemy.sql import exists
 ####################
 
 
+# 频道表结构，存储频道基础信息与访问控制
 class Channel(Base):
     __tablename__ = "channel"
 
@@ -48,6 +51,7 @@ class Channel(Base):
     deleted_by = Column(Text, nullable=True)
 
 
+# 频道数据模型，用于在接口层返回频道信息
 class ChannelModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,6 +81,7 @@ class ChannelModel(BaseModel):
     deleted_by: Optional[str] = None
 
 
+# 频道成员表结构，记录成员关系及状态
 class ChannelMember(Base):
     __tablename__ = "channel_member"
 
@@ -107,6 +112,7 @@ class ChannelMember(Base):
     updated_at = Column(BigInteger)
 
 
+# 频道成员数据模型，承载成员关系的序列化数据
 class ChannelMemberModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -137,6 +143,7 @@ class ChannelMemberModel(BaseModel):
     updated_at: Optional[int] = None  # timestamp in epoch (time_ns)
 
 
+# 频道 webhook 表结构，保存机器人或外部触发信息
 class ChannelWebhook(Base):
     __tablename__ = "channel_webhook"
 
@@ -154,6 +161,7 @@ class ChannelWebhook(Base):
     updated_at = Column(BigInteger, nullable=False)
 
 
+# 频道 webhook 数据模型，用于序列化 webhook 信息
 class ChannelWebhookModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -176,6 +184,7 @@ class ChannelWebhookModel(BaseModel):
 ####################
 
 
+# 扩展的频道返回模型，附带权限与用户统计
 class ChannelResponse(ChannelModel):
     is_manager: bool = False
     write_access: bool = False
@@ -183,6 +192,7 @@ class ChannelResponse(ChannelModel):
     user_count: Optional[int] = None
 
 
+# 创建或更新频道时的表单数据
 class ChannelForm(BaseModel):
     name: str = ""
     description: Optional[str] = None
@@ -194,12 +204,15 @@ class ChannelForm(BaseModel):
     user_ids: Optional[list[str]] = None
 
 
+# 创建频道时额外提供类型字段的表单
 class CreateChannelForm(ChannelForm):
     type: Optional[str] = None
 
 
+# 频道表操作封装，提供创建、查询及成员维护方法
 class ChannelTable:
 
+    # 汇总邀请者、用户列表与群组成员，返回唯一用户ID集合
     def _collect_unique_user_ids(
         self,
         invited_by: str,
@@ -221,6 +234,7 @@ class ChannelTable:
 
         return users
 
+    # 根据用户ID集合创建频道成员模型列表
     def _create_membership_models(
         self,
         channel_id: str,
@@ -257,6 +271,7 @@ class ChannelTable:
 
         return memberships
 
+    # 创建新频道并在需要时创建成员记录
     def insert_new_channel(
         self, form_data: CreateChannelForm, user_id: str
     ) -> Optional[ChannelModel]:
@@ -291,11 +306,13 @@ class ChannelTable:
             db.commit()
             return channel
 
+    # 查询所有频道并返回模型列表
     def get_channels(self) -> list[ChannelModel]:
         with get_db() as db:
             channels = db.query(Channel).all()
             return [ChannelModel.model_validate(channel) for channel in channels]
 
+    # 根据用户或群组权限过滤频道列表
     def _has_permission(self, db, query, filter: dict, permission: str = "read"):
         group_ids = filter.get("group_ids", [])
         user_id = filter.get("user_id")
@@ -338,6 +355,7 @@ class ChannelTable:
 
         return query
 
+    # 获取用户有权访问的频道集合（含标准频道与加入的群组/DM）
     def get_channels_by_user_id(self, user_id: str) -> list[ChannelModel]:
         with get_db() as db:
             user_group_ids = [
@@ -375,6 +393,7 @@ class ChannelTable:
             all_channels = membership_channels + standard_channels
             return [ChannelModel.model_validate(c) for c in all_channels]
 
+    # 根据用户ID列表查找对应的私聊频道
     def get_dm_channel_by_user_ids(self, user_ids: list[str]) -> Optional[ChannelModel]:
         with get_db() as db:
             # Ensure uniqueness in case a list with duplicates is passed
@@ -408,6 +427,7 @@ class ChannelTable:
 
             return ChannelModel.model_validate(channel) if channel else None
 
+    # 向频道添加成员（来自用户列表或群组）
     def add_members_to_channel(
         self,
         channel_id: str,
@@ -444,6 +464,7 @@ class ChannelTable:
                 for membership in new_memberships
             ]
 
+    # 批量移除频道成员并返回删除数量
     def remove_members_from_channel(
         self,
         channel_id: str,
@@ -461,6 +482,7 @@ class ChannelTable:
             db.commit()
             return result  # number of rows deleted
 
+    # 判断用户是否为频道创建者或管理者
     def is_user_channel_manager(self, channel_id: str, user_id: str) -> bool:
         with get_db() as db:
             # Check if the user is the creator of the channel
@@ -480,6 +502,7 @@ class ChannelTable:
             )
             return membership is not None
 
+    # 用户加入频道，若已存在则直接返回
     def join_channel(
         self, channel_id: str, user_id: str
     ) -> Optional[ChannelMemberModel]:
@@ -519,6 +542,7 @@ class ChannelTable:
             db.commit()
             return channel_member
 
+    # 用户退出频道并记录离开时间
     def leave_channel(self, channel_id: str, user_id: str) -> bool:
         with get_db() as db:
             membership = (
@@ -554,6 +578,7 @@ class ChannelTable:
             )
             return ChannelMemberModel.model_validate(membership) if membership else None
 
+    # 查询频道的所有成员信息
     def get_members_by_channel_id(self, channel_id: str) -> list[ChannelMemberModel]:
         with get_db() as db:
             memberships = (
@@ -566,6 +591,7 @@ class ChannelTable:
                 for membership in memberships
             ]
 
+    # 更新成员对频道的置顶状态
     def pin_channel(self, channel_id: str, user_id: str, is_pinned: bool) -> bool:
         with get_db() as db:
             membership = (
@@ -585,6 +611,7 @@ class ChannelTable:
             db.commit()
             return True
 
+    # 刷新成员的最后阅读时间戳
     def update_member_last_read_at(self, channel_id: str, user_id: str) -> bool:
         with get_db() as db:
             membership = (
@@ -604,6 +631,7 @@ class ChannelTable:
             db.commit()
             return True
 
+    # 更新成员激活状态（禁用或启用）
     def update_member_active_status(
         self, channel_id: str, user_id: str, is_active: bool
     ) -> bool:
@@ -625,6 +653,7 @@ class ChannelTable:
             db.commit()
             return True
 
+    # 检查用户是否已加入频道
     def is_user_channel_member(self, channel_id: str, user_id: str) -> bool:
         with get_db() as db:
             membership = (
@@ -637,11 +666,13 @@ class ChannelTable:
             )
             return membership is not None
 
+    # 按ID获取频道详细信息
     def get_channel_by_id(self, id: str) -> Optional[ChannelModel]:
         with get_db() as db:
             channel = db.query(Channel).filter(Channel.id == id).first()
             return ChannelModel.model_validate(channel) if channel else None
 
+    # 根据ID更新频道元数据
     def update_channel_by_id(
         self, id: str, form_data: ChannelForm
     ) -> Optional[ChannelModel]:
@@ -663,6 +694,7 @@ class ChannelTable:
             db.commit()
             return ChannelModel.model_validate(channel) if channel else None
 
+    # 按ID删除频道记录
     def delete_channel_by_id(self, id: str):
         with get_db() as db:
             db.query(Channel).filter(Channel.id == id).delete()
