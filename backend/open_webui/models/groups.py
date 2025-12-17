@@ -33,6 +33,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 ####################
 
 
+# 用户组表结构，描述分组基本信息与权限配置
 class Group(Base):
     __tablename__ = "group"
 
@@ -51,6 +52,7 @@ class Group(Base):
     updated_at = Column(BigInteger)
 
 
+# Group 数据模型，用于序列化组记录
 class GroupModel(BaseModel):
     id: str
     user_id: str
@@ -69,6 +71,7 @@ class GroupModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 组成员关联表，存储用户与组的关系
 class GroupMember(Base):
     __tablename__ = "group_member"
 
@@ -83,6 +86,7 @@ class GroupMember(Base):
     updated_at = Column(BigInteger, nullable=True)
 
 
+# 组成员数据模型
 class GroupMemberModel(BaseModel):
     id: str
     group_id: str
@@ -96,10 +100,12 @@ class GroupMemberModel(BaseModel):
 ####################
 
 
+# 在基础组信息上附带成员数量的响应模型
 class GroupResponse(GroupModel):
     member_count: Optional[int] = None
 
 
+# 新建组时提交的表单
 class GroupForm(BaseModel):
     name: str
     description: str
@@ -107,20 +113,24 @@ class GroupForm(BaseModel):
     data: Optional[dict] = None
 
 
+# 批量添加成员时使用的用户 ID 列表
 class UserIdsForm(BaseModel):
     user_ids: Optional[list[str]] = None
 
 
+# 更新组信息的表单，继承创建字段
 class GroupUpdateForm(GroupForm):
     pass
 
 
+# 分页返回的组列表响应
 class GroupListResponse(BaseModel):
     items: list[GroupResponse] = []
     total: int = 0
 
 
 class GroupTable:
+    # 创建新的用户组并写入数据库
     def insert_new_group(
         self, user_id: str, form_data: GroupForm
     ) -> Optional[GroupModel]:
@@ -148,11 +158,13 @@ class GroupTable:
             except Exception:
                 return None
 
+    # 获取全部组，按更新时间倒序
     def get_all_groups(self) -> list[GroupModel]:
         with get_db() as db:
             groups = db.query(Group).order_by(Group.updated_at.desc()).all()
             return [GroupModel.model_validate(group) for group in groups]
 
+    # 按多种过滤条件查询组列表，可按名称、成员或分享配置过滤
     def get_groups(self, filter) -> list[GroupResponse]:
         with get_db() as db:
             query = db.query(Group)
@@ -192,6 +204,7 @@ class GroupTable:
                 for group in groups
             ]
 
+    # 支持分页与过滤的组搜索
     def search_groups(
         self, filter: Optional[dict] = None, skip: int = 0, limit: int = 30
     ) -> GroupListResponse:
@@ -229,6 +242,7 @@ class GroupTable:
                 "total": total,
             }
 
+    # 根据用户 ID 查询其所在的全部组
     def get_groups_by_member_id(self, user_id: str) -> list[GroupModel]:
         with get_db() as db:
             return [
@@ -240,6 +254,7 @@ class GroupTable:
                 .all()
             ]
 
+    # 按组 ID 获取组详情
     def get_group_by_id(self, id: str) -> Optional[GroupModel]:
         try:
             with get_db() as db:
@@ -248,6 +263,7 @@ class GroupTable:
         except Exception:
             return None
 
+    # 获取指定组内所有成员的用户 ID
     def get_group_user_ids_by_id(self, id: str) -> Optional[list[str]]:
         with get_db() as db:
             members = (
@@ -259,6 +275,7 @@ class GroupTable:
 
             return [m[0] for m in members]
 
+    # 批量查询多个组的成员列表
     def get_group_user_ids_by_ids(self, group_ids: list[str]) -> dict[str, list[str]]:
         with get_db() as db:
             members = (
@@ -276,6 +293,7 @@ class GroupTable:
 
             return group_user_ids
 
+    # 覆盖式设置组成员，会先删除原有关系
     def set_group_user_ids_by_id(self, group_id: str, user_ids: list[str]) -> None:
         with get_db() as db:
             # Delete existing members
@@ -297,6 +315,7 @@ class GroupTable:
             db.add_all(new_members)
             db.commit()
 
+    # 统计组成员数量
     def get_group_member_count_by_id(self, id: str) -> int:
         with get_db() as db:
             count = (
@@ -306,6 +325,7 @@ class GroupTable:
             )
             return count if count else 0
 
+    # 更新组名称、描述或权限等信息
     def update_group_by_id(
         self, id: str, form_data: GroupUpdateForm, overwrite: bool = False
     ) -> Optional[GroupModel]:
@@ -323,6 +343,7 @@ class GroupTable:
             log.exception(e)
             return None
 
+    # 删除指定组
     def delete_group_by_id(self, id: str) -> bool:
         try:
             with get_db() as db:
@@ -332,6 +353,7 @@ class GroupTable:
         except Exception:
             return False
 
+    # 清空所有组记录
     def delete_all_groups(self) -> bool:
         with get_db() as db:
             try:
@@ -342,6 +364,7 @@ class GroupTable:
             except Exception:
                 return False
 
+    # 将用户从其所在的所有组中移除
     def remove_user_from_all_groups(self, user_id: str) -> bool:
         with get_db() as db:
             try:
@@ -370,6 +393,7 @@ class GroupTable:
                 db.rollback()
                 return False
 
+    # 根据名称批量创建新组，跳过已存在的名称
     def create_groups_by_group_names(
         self, user_id: str, group_names: list[str]
     ) -> list[GroupModel]:
@@ -402,6 +426,7 @@ class GroupTable:
                         continue
             return new_groups
 
+    # 同步用户所属组：根据提供的组名集增删成员关系
     def sync_groups_by_group_names(self, user_id: str, group_names: list[str]) -> bool:
         with get_db() as db:
             try:
@@ -462,6 +487,7 @@ class GroupTable:
                 db.rollback()
                 return False
 
+    # 将用户列表加入到指定组，忽略重复
     def add_users_to_group(
         self, id: str, user_ids: Optional[list[str]] = None
     ) -> Optional[GroupModel]:
@@ -500,6 +526,7 @@ class GroupTable:
             log.exception(e)
             return None
 
+    # 从组中移除指定用户
     def remove_users_from_group(
         self, id: str, user_ids: Optional[list[str]] = None
     ) -> Optional[GroupModel]:
