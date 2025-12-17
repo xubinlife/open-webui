@@ -17,6 +17,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 ####################
 # Tag DB Schema
 ####################
+# 标签表定义，存储用户创建的标签信息
 class Tag(Base):
     __tablename__ = "tag"
     id = Column(String)
@@ -33,6 +34,7 @@ class Tag(Base):
     __table_args__ = (PrimaryKeyConstraint("id", "user_id", name="pk_id_user_id"),)
 
 
+# 标签数据的Pydantic模型，用于ORM对象的序列化
 class TagModel(BaseModel):
     id: str
     name: str
@@ -46,12 +48,15 @@ class TagModel(BaseModel):
 ####################
 
 
+# 用于在聊天中关联标签的请求表单
 class TagChatIdForm(BaseModel):
     name: str
     chat_id: str
 
 
+# 标签表操作封装，提供增删查等接口
 class TagTable:
+    # 为指定用户创建新标签，确保名称转换后的id唯一
     def insert_new_tag(self, name: str, user_id: str) -> Optional[TagModel]:
         with get_db() as db:
             id = name.replace(" ", "_").lower()
@@ -69,6 +74,7 @@ class TagTable:
                 log.exception(f"Error inserting a new tag: {e}")
                 return None
 
+    # 按标签名称和用户ID查询单个标签
     def get_tag_by_name_and_user_id(
         self, name: str, user_id: str
     ) -> Optional[TagModel]:
@@ -80,6 +86,7 @@ class TagTable:
         except Exception:
             return None
 
+    # 获取用户下的全部标签列表
     def get_tags_by_user_id(self, user_id: str) -> list[TagModel]:
         with get_db() as db:
             return [
@@ -87,6 +94,7 @@ class TagTable:
                 for tag in (db.query(Tag).filter_by(user_id=user_id).all())
             ]
 
+    # 按标签ID集合和用户ID批量获取标签
     def get_tags_by_ids_and_user_id(
         self, ids: list[str], user_id: str
     ) -> list[TagModel]:
@@ -98,6 +106,7 @@ class TagTable:
                 )
             ]
 
+    # 删除指定用户下的标签
     def delete_tag_by_name_and_user_id(self, name: str, user_id: str) -> bool:
         try:
             with get_db() as db:

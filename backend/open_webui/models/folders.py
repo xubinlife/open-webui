@@ -21,6 +21,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 ####################
 
 
+# 文件夹表结构，保存层级关系、用户归属及自定义数据
 class Folder(Base):
     __tablename__ = "folder"
     id = Column(Text, primary_key=True, unique=True)
@@ -35,6 +36,7 @@ class Folder(Base):
     updated_at = Column(BigInteger)
 
 
+# Folder 数据模型，用于序列化数据库记录
 class FolderModel(BaseModel):
     id: str
     parent_id: Optional[str] = None
@@ -50,10 +52,12 @@ class FolderModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 文件夹元数据响应，主要存储图标等展示信息
 class FolderMetadataResponse(BaseModel):
     icon: Optional[str] = None
 
 
+# 仅返回文件夹的基本信息供列表展示
 class FolderNameIdResponse(BaseModel):
     id: str
     name: str
@@ -69,6 +73,7 @@ class FolderNameIdResponse(BaseModel):
 ####################
 
 
+# 创建文件夹的入参表单
 class FolderForm(BaseModel):
     name: str
     data: Optional[dict] = None
@@ -76,6 +81,7 @@ class FolderForm(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+# 更新文件夹名称、数据或元信息的表单
 class FolderUpdateForm(BaseModel):
     name: Optional[str] = None
     data: Optional[dict] = None
@@ -84,6 +90,7 @@ class FolderUpdateForm(BaseModel):
 
 
 class FolderTable:
+    # 新建文件夹并挂载到指定父节点
     def insert_new_folder(
         self, user_id: str, form_data: FolderForm, parent_id: Optional[str] = None
     ) -> Optional[FolderModel]:
@@ -112,6 +119,7 @@ class FolderTable:
                 log.exception(f"Error inserting a new folder: {e}")
                 return None
 
+    # 根据文件夹 ID 与用户 ID 精确查询
     def get_folder_by_id_and_user_id(
         self, id: str, user_id: str
     ) -> Optional[FolderModel]:
@@ -126,6 +134,7 @@ class FolderTable:
         except Exception:
             return None
 
+    # 递归获取指定文件夹的所有子孙节点
     def get_children_folders_by_id_and_user_id(
         self, id: str, user_id: str
     ) -> Optional[list[FolderModel]]:
@@ -150,6 +159,7 @@ class FolderTable:
         except Exception:
             return None
 
+    # 获取用户的全部文件夹
     def get_folders_by_user_id(self, user_id: str) -> list[FolderModel]:
         with get_db() as db:
             return [
@@ -157,6 +167,7 @@ class FolderTable:
                 for folder in db.query(Folder).filter_by(user_id=user_id).all()
             ]
 
+    # 在指定父级下按名称查找文件夹，忽略大小写
     def get_folder_by_parent_id_and_user_id_and_name(
         self, parent_id: Optional[str], user_id: str, name: str
     ) -> Optional[FolderModel]:
@@ -178,6 +189,7 @@ class FolderTable:
             log.error(f"get_folder_by_parent_id_and_user_id_and_name: {e}")
             return None
 
+    # 获取某个父节点下的直接子文件夹
     def get_folders_by_parent_id_and_user_id(
         self, parent_id: Optional[str], user_id: str
     ) -> list[FolderModel]:
@@ -189,6 +201,7 @@ class FolderTable:
                 .all()
             ]
 
+    # 调整文件夹的父级，实现移动操作
     def update_folder_parent_id_by_id_and_user_id(
         self,
         id: str,
@@ -212,6 +225,7 @@ class FolderTable:
             log.error(f"update_folder: {e}")
             return
 
+    # 更新文件夹名称或附加数据，处理重名校验
     def update_folder_by_id_and_user_id(
         self, id: str, user_id: str, form_data: FolderUpdateForm
     ) -> Optional[FolderModel]:
@@ -258,6 +272,7 @@ class FolderTable:
             log.error(f"update_folder: {e}")
             return
 
+    # 更新折叠状态，便于前端记忆展开情况
     def update_folder_is_expanded_by_id_and_user_id(
         self, id: str, user_id: str, is_expanded: bool
     ) -> Optional[FolderModel]:
@@ -278,6 +293,7 @@ class FolderTable:
             log.error(f"update_folder: {e}")
             return
 
+    # 删除文件夹并级联清理子节点，返回删除的 ID 列表
     def delete_folder_by_id_and_user_id(self, id: str, user_id: str) -> list[str]:
         try:
             folder_ids = []
@@ -310,11 +326,13 @@ class FolderTable:
             log.error(f"delete_folder: {e}")
             return []
 
+    # 标准化名称以便模糊匹配，去除多余空格并统一大小写
     def normalize_folder_name(self, name: str) -> str:
         # Replace _ and space with a single space, lower case, collapse multiple spaces
         name = re.sub(r"[\s_]+", " ", name)
         return name.strip().lower()
 
+    # 按多名称精确匹配，返回命中的文件夹及其子孙
     def search_folders_by_names(
         self, user_id: str, queries: list[str]
     ) -> list[FolderModel]:
@@ -346,6 +364,7 @@ class FolderTable:
             results = list(results.values())
             return results
 
+    # 按包含关系模糊搜索文件夹
     def search_folders_by_name_contains(
         self, user_id: str, query: str
     ) -> list[FolderModel]:

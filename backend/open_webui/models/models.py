@@ -32,12 +32,14 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 # ModelParams is a model for the data stored in the params field of the Model table
 class ModelParams(BaseModel):
+    # 存储在模型参数字段中的动态配置，允许任意额外字段
     model_config = ConfigDict(extra="allow")
     pass
 
 
 # ModelMeta is a model for the data stored in the meta field of the Model table
 class ModelMeta(BaseModel):
+    # 模型的展示信息与能力描述
     profile_image_url: Optional[str] = "/static/favicon.png"
 
     description: Optional[str] = None
@@ -53,6 +55,7 @@ class ModelMeta(BaseModel):
 
 
 class Model(Base):
+    # 模型表定义，记录自定义模型的元数据、参数及访问控制
     __tablename__ = "model"
 
     id = Column(Text, primary_key=True, unique=True)
@@ -105,6 +108,7 @@ class Model(Base):
 
 
 class ModelModel(BaseModel):
+    # 模型的标准数据传输结构
     id: str
     user_id: str
     base_model_id: Optional[str] = None
@@ -128,19 +132,23 @@ class ModelModel(BaseModel):
 
 
 class ModelUserResponse(ModelModel):
+    # 携带用户信息的模型响应结构
     user: Optional[UserResponse] = None
 
 
 class ModelResponse(ModelModel):
+    # 直接复用基础模型的响应
     pass
 
 
 class ModelListResponse(BaseModel):
+    # 模型列表分页响应
     items: list[ModelUserResponse]
     total: int
 
 
 class ModelForm(BaseModel):
+    # 创建或更新模型时的表单结构
     id: str
     base_model_id: Optional[str] = None
     name: str
@@ -151,9 +159,11 @@ class ModelForm(BaseModel):
 
 
 class ModelsTable:
+    # 封装模型的CRUD与同步逻辑
     def insert_new_model(
         self, form_data: ModelForm, user_id: str
     ) -> Optional[ModelModel]:
+        # 创建新模型记录并持久化
         model = ModelModel(
             **{
                 **form_data.model_dump(),
@@ -178,10 +188,12 @@ class ModelsTable:
             return None
 
     def get_all_models(self) -> list[ModelModel]:
+        # 获取所有模型（包含基础模型与自定义模型）
         with get_db() as db:
             return [ModelModel.model_validate(model) for model in db.query(Model).all()]
 
     def get_models(self) -> list[ModelUserResponse]:
+        # 获取所有自定义模型并附带用户信息
         with get_db() as db:
             all_models = db.query(Model).filter(Model.base_model_id != None).all()
 
@@ -204,6 +216,7 @@ class ModelsTable:
             return models
 
     def get_base_models(self) -> list[ModelModel]:
+        # 获取基础模型（无base_model_id）
         with get_db() as db:
             return [
                 ModelModel.model_validate(model)
@@ -213,6 +226,7 @@ class ModelsTable:
     def get_models_by_user_id(
         self, user_id: str, permission: str = "write"
     ) -> list[ModelUserResponse]:
+        # 根据用户权限筛选可访问的模型列表
         models = self.get_models()
         user_group_ids = {group.id for group in Groups.get_groups_by_member_id(user_id)}
         return [
@@ -223,6 +237,7 @@ class ModelsTable:
         ]
 
     def _has_permission(self, db, query, filter: dict, permission: str = "read"):
+        # 根据访问控制配置构造过滤条件，支持用户/群组/公开
         group_ids = filter.get("group_ids", [])
         user_id = filter.get("user_id")
 
@@ -267,6 +282,7 @@ class ModelsTable:
     def search_models(
         self, user_id: str, filter: dict = {}, skip: int = 0, limit: int = 30
     ) -> ModelListResponse:
+        # 综合过滤、排序与分页的模型搜索
         with get_db() as db:
             # Join GroupMember so we can order by group_id when requested
             query = db.query(Model, User).outerjoin(User, User.id == Model.user_id)
@@ -352,6 +368,7 @@ class ModelsTable:
             return ModelListResponse(items=models, total=total)
 
     def get_model_by_id(self, id: str) -> Optional[ModelModel]:
+        # 按ID获取模型，捕获异常返回None
         try:
             with get_db() as db:
                 model = db.get(Model, id)
@@ -360,6 +377,7 @@ class ModelsTable:
             return None
 
     def toggle_model_by_id(self, id: str) -> Optional[ModelModel]:
+        # 切换模型启用状态
         with get_db() as db:
             try:
                 is_active = db.query(Model).filter_by(id=id).first().is_active
@@ -377,6 +395,7 @@ class ModelsTable:
                 return None
 
     def update_model_by_id(self, id: str, model: ModelForm) -> Optional[ModelModel]:
+        # 更新模型元信息与参数，仅覆盖传入字段
         try:
             with get_db() as db:
                 # update only the fields that are present in the model
@@ -393,6 +412,7 @@ class ModelsTable:
             return None
 
     def delete_model_by_id(self, id: str) -> bool:
+        # 删除指定模型
         try:
             with get_db() as db:
                 db.query(Model).filter_by(id=id).delete()
@@ -403,6 +423,7 @@ class ModelsTable:
             return False
 
     def delete_all_models(self) -> bool:
+        # 清空所有模型记录
         try:
             with get_db() as db:
                 db.query(Model).delete()
@@ -413,6 +434,7 @@ class ModelsTable:
             return False
 
     def sync_models(self, user_id: str, models: list[ModelModel]) -> list[ModelModel]:
+        # 同步模型列表：更新已有、插入新建、删除缺失
         try:
             with get_db() as db:
                 # Get existing models

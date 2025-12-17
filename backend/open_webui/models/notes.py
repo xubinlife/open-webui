@@ -20,6 +20,7 @@ from sqlalchemy.sql import exists
 ####################
 
 
+# 笔记表模型，记录用户笔记内容及权限信息
 class Note(Base):
     __tablename__ = "note"
 
@@ -36,6 +37,7 @@ class Note(Base):
     updated_at = Column(BigInteger)
 
 
+# 笔记数据的Pydantic模型，用于序列化数据库记录
 class NoteModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +59,7 @@ class NoteModel(BaseModel):
 ####################
 
 
+# 创建笔记的表单结构
 class NoteForm(BaseModel):
     title: str
     data: Optional[dict] = None
@@ -64,6 +67,7 @@ class NoteForm(BaseModel):
     access_control: Optional[dict] = None
 
 
+# 更新笔记的表单结构，字段可选
 class NoteUpdateForm(BaseModel):
     title: Optional[str] = None
     data: Optional[dict] = None
@@ -71,11 +75,14 @@ class NoteUpdateForm(BaseModel):
     access_control: Optional[dict] = None
 
 
+# 带有用户信息的笔记返回体
 class NoteUserResponse(NoteModel):
     user: Optional[UserResponse] = None
 
 
+# 笔记表操作封装，处理增删改查和权限过滤
 class NoteTable:
+    # 创建新笔记并返回模型对象
     def insert_new_note(
         self,
         form_data: NoteForm,
@@ -98,6 +105,7 @@ class NoteTable:
             db.commit()
             return note
 
+    # 按时间倒序获取全部笔记，可分页
     def get_notes(
         self, skip: Optional[int] = None, limit: Optional[int] = None
     ) -> list[NoteModel]:
@@ -110,6 +118,7 @@ class NoteTable:
             notes = query.all()
             return [NoteModel.model_validate(note) for note in notes]
 
+    # 获取指定用户的笔记列表，支持分页
     def get_notes_by_user_id(
         self,
         user_id: str,
@@ -128,6 +137,7 @@ class NoteTable:
             notes = query.all()
             return [NoteModel.model_validate(note) for note in notes]
 
+    # 基于权限过滤笔记，遍历时按最新排序
     def get_notes_by_permission(
         self,
         user_id: str,
@@ -178,11 +188,13 @@ class NoteTable:
 
             return results
 
+    # 根据ID获取单条笔记
     def get_note_by_id(self, id: str) -> Optional[NoteModel]:
         with get_db() as db:
             note = db.query(Note).filter(Note.id == id).first()
             return NoteModel.model_validate(note) if note else None
 
+    # 按ID更新笔记字段
     def update_note_by_id(
         self, id: str, form_data: NoteUpdateForm
     ) -> Optional[NoteModel]:
@@ -208,6 +220,7 @@ class NoteTable:
             db.commit()
             return NoteModel.model_validate(note) if note else None
 
+    # 删除指定ID的笔记
     def delete_note_by_id(self, id: str):
         with get_db() as db:
             db.query(Note).filter(Note.id == id).delete()

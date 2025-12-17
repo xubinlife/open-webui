@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
+# 聊天记录表结构，保存用户会话内容与元数据
 class Chat(Base):
     __tablename__ = "chat"
 
@@ -56,6 +57,7 @@ class Chat(Base):
     )
 
 
+# 聊天数据模型，用于序列化数据库记录
 class ChatModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -80,11 +82,13 @@ class ChatModel(BaseModel):
 ####################
 
 
+# 基础聊天表单，提交会话内容及文件夹归属
 class ChatForm(BaseModel):
     chat: dict
     folder_id: Optional[str] = None
 
 
+# 导入聊天的表单，附带可选元数据与时间戳
 class ChatImportForm(ChatForm):
     meta: Optional[dict] = {}
     pinned: Optional[bool] = False
@@ -92,19 +96,23 @@ class ChatImportForm(ChatForm):
     updated_at: Optional[int] = None
 
 
+# 批量导入聊天的表单
 class ChatsImportForm(BaseModel):
     chats: list[ChatImportForm]
 
 
+# 含标题与消息体的表单，供自动生成标题使用
 class ChatTitleMessagesForm(BaseModel):
     title: str
     messages: list[dict]
 
 
+# 仅更新标题的表单
 class ChatTitleForm(BaseModel):
     title: str
 
 
+# 聊天返回模型，包含分享、归档等标记
 class ChatResponse(BaseModel):
     id: str
     user_id: str
@@ -119,6 +127,7 @@ class ChatResponse(BaseModel):
     folder_id: Optional[str] = None
 
 
+# 仅返回聊天ID与标题的轻量模型
 class ChatTitleIdResponse(BaseModel):
     id: str
     title: str
@@ -126,7 +135,9 @@ class ChatTitleIdResponse(BaseModel):
     created_at: int
 
 
+# 聊天表操作封装，包含清洗、CRUD 及查询逻辑
 class ChatTable:
+    # 递归清理字符串中的空字节，保持JSON安全
     def _clean_null_bytes(self, obj):
         """
         Recursively remove actual null bytes (\x00) and unicode escape \\u0000
@@ -141,6 +152,7 @@ class ChatTable:
             return [self._clean_null_bytes(v) for v in obj]
         return obj
 
+    # 清洗单条聊天记录标题与内容，返回是否发生修改
     def _sanitize_chat_row(self, chat_item):
         """
         Clean a Chat SQLAlchemy model's title + chat JSON,
@@ -164,6 +176,7 @@ class ChatTable:
 
         return changed
 
+    # 创建新的聊天记录，写入数据库后返回模型
     def insert_new_chat(self, user_id: str, form_data: ChatForm) -> Optional[ChatModel]:
         with get_db() as db:
             id = str(uuid.uuid4())
@@ -189,6 +202,7 @@ class ChatTable:
             db.refresh(chat_item)
             return ChatModel.model_validate(chat_item) if chat_item else None
 
+    # 将导入表单转换为聊天模型，复用清洗逻辑
     def _chat_import_form_to_chat_model(
         self, user_id: str, form_data: ChatImportForm
     ) -> ChatModel:
@@ -214,6 +228,7 @@ class ChatTable:
         )
         return chat
 
+    # 批量导入聊天数据，返回写入后的模型列表
     def import_chats(
         self, user_id: str, chat_import_forms: list[ChatImportForm]
     ) -> list[ChatModel]:
