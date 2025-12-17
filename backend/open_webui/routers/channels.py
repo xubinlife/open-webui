@@ -66,11 +66,12 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
 
-############################
+# ##########################
 # GetChatList
-############################
+# ##########################
 
 
+# 用于返回频道列表项的扩展响应，补充私聊成员及未读消息等信息
 class ChannelListItemResponse(ChannelModel):
     user_ids: Optional[list[str]] = None  # 'dm' channels only
     users: Optional[list[UserIdNameStatusResponse]] = None  # 'dm' channels only
@@ -79,6 +80,7 @@ class ChannelListItemResponse(ChannelModel):
     unread_count: int = 0
 
 
+# 获取当前用户可见的频道列表，并计算私聊成员、未读数等补充信息
 @router.get("/", response_model=list[ChannelListItemResponse])
 async def get_channels(request: Request, user=Depends(get_verified_user)):
     if user.role != "admin" and not has_permission(
@@ -131,6 +133,7 @@ async def get_channels(request: Request, user=Depends(get_verified_user)):
     return channel_list
 
 
+# 列出所有频道；管理员返回全部，普通用户仅返回参与的频道
 @router.get("/list", response_model=list[ChannelModel])
 async def get_all_channels(user=Depends(get_verified_user)):
     if user.role == "admin":
@@ -143,6 +146,7 @@ async def get_all_channels(user=Depends(get_verified_user)):
 ############################
 
 
+# 根据用户 ID 获取或创建与之的私聊频道，并确保双方加入房间
 @router.get("/users/{user_id}", response_model=Optional[ChannelModel])
 async def get_dm_channel_by_user_id(
     request: Request, user_id: str, user=Depends(get_verified_user)
@@ -207,11 +211,12 @@ async def get_dm_channel_by_user_id(
         )
 
 
-############################
+# ##########################
 # CreateNewChannel
-############################
+# ##########################
 
 
+# 创建新的频道（含群组、私聊、标准频道），并广播创建事件
 @router.post("/create", response_model=Optional[ChannelModel])
 async def create_new_channel(
     request: Request, form_data: CreateChannelForm, user=Depends(get_verified_user)
@@ -280,11 +285,12 @@ async def create_new_channel(
         )
 
 
-############################
+# ##########################
 # GetChannelById
-############################
+# ##########################
 
 
+# 扩展频道详情响应，包含成员列表、未读数等信息
 class ChannelFullResponse(ChannelResponse):
     user_ids: Optional[list[str]] = None  # 'group'/'dm' channels only
     users: Optional[list[UserIdNameStatusResponse]] = None  # 'group'/'dm' channels only
@@ -293,6 +299,7 @@ class ChannelFullResponse(ChannelResponse):
     unread_count: int = 0
 
 
+# 获取指定频道详情，校验访问权限并补充成员/权限信息
 @router.get("/{id}", response_model=Optional[ChannelFullResponse])
 async def get_channel_by_id(id: str, user=Depends(get_verified_user)):
     channel = Channels.get_channel_by_id(id)
@@ -379,6 +386,7 @@ async def get_channel_by_id(id: str, user=Depends(get_verified_user)):
 PAGE_ITEM_COUNT = 30
 
 
+# 分页获取频道成员（群组/私聊或权限过滤），支持查询和排序
 @router.get("/{id}/members", response_model=UserListResponse)
 async def get_channel_members_by_id(
     id: str,
@@ -464,10 +472,12 @@ async def get_channel_members_by_id(
 #################################################
 
 
+# 切换频道成员是否活跃的表单
 class UpdateActiveMemberForm(BaseModel):
     is_active: bool
 
 
+# 更新当前用户在频道中的活跃状态
 @router.post("/{id}/members/active", response_model=bool)
 async def update_is_active_member_by_id_and_user_id(
     id: str,
@@ -494,11 +504,13 @@ async def update_is_active_member_by_id_and_user_id(
 #################################################
 
 
+# 批量增删成员/群组的表单
 class UpdateMembersForm(BaseModel):
     user_ids: list[str] = []
     group_ids: list[str] = []
 
 
+# 向频道添加用户或群组成员，管理员或有权限者可操作
 @router.post("/{id}/update/members/add")
 async def add_members_by_id(
     request: Request,
@@ -547,6 +559,7 @@ class RemoveMembersForm(BaseModel):
     user_ids: list[str] = []
 
 
+# 从频道移除用户或群组，执行后通知相关成员
 @router.post("/{id}/update/members/remove")
 async def remove_members_by_id(
     request: Request,
@@ -584,11 +597,12 @@ async def remove_members_by_id(
         )
 
 
-############################
+# ##########################
 # UpdateChannelById
-############################
+# ##########################
 
 
+# 更新频道元数据（名称、类型、权限等），仅频道创建者或管理员可用
 @router.post("/{id}/update", response_model=Optional[ChannelModel])
 async def update_channel_by_id(
     request: Request, id: str, form_data: ChannelForm, user=Depends(get_verified_user)
@@ -622,11 +636,12 @@ async def update_channel_by_id(
         )
 
 
-############################
+# ##########################
 # DeleteChannelById
-############################
+# ##########################
 
 
+# 删除频道，权限限制为管理员或创建者
 @router.delete("/{id}/delete", response_model=bool)
 async def delete_channel_by_id(
     request: Request, id: str, user=Depends(get_verified_user)
@@ -660,15 +675,17 @@ async def delete_channel_by_id(
         )
 
 
-############################
+# ##########################
 # GetChannelMessages
-############################
+# ##########################
 
 
+# 消息响应扩展，方便补充用户与回复数据
 class MessageUserResponse(MessageResponse):
     pass
 
 
+# 分页获取频道消息列表，并补充用户信息、回复数量与表情反应
 @router.get("/{id}/messages", response_model=list[MessageUserResponse])
 async def get_channel_messages(
     id: str, skip: int = 0, limit: int = 50, user=Depends(get_verified_user)
@@ -725,13 +742,14 @@ async def get_channel_messages(
     return messages
 
 
-############################
+# ##########################
 # GetPinnedChannelMessages
-############################
+# ##########################
 
 PAGE_ITEM_COUNT_PINNED = 20
 
 
+# 获取频道置顶消息列表，包含表情反应信息
 @router.get("/{id}/messages/pinned", response_model=list[MessageWithReactionsResponse])
 async def get_pinned_channel_messages(
     id: str, page: int = 1, user=Depends(get_verified_user)
@@ -786,6 +804,7 @@ async def get_pinned_channel_messages(
 ############################
 
 
+# 为离线频道成员发送消息通知（使用个人 webhook）
 async def send_notification(name, webui_url, channel, message, active_user_ids):
     users = get_users_with_access("read", channel.access_control)
 
@@ -813,6 +832,7 @@ async def send_notification(name, webui_url, channel, message, active_user_ids):
     return True
 
 
+# 检查消息中的模型提及或回复对象，触发模型自动回复流程
 async def model_response_handler(request, channel, message, user):
     MODELS = {
         model["id"]: model
@@ -987,6 +1007,7 @@ async def model_response_handler(request, channel, message, user):
     return True
 
 
+# 核心消息写入逻辑：校验权限、保存消息并更新频道活跃状态
 async def new_message_handler(
     request: Request, id: str, form_data: MessageForm, user=Depends(get_verified_user)
 ):
@@ -1067,6 +1088,7 @@ async def new_message_handler(
         )
 
 
+# HTTP 路由：发送新消息，触发异步模型回复与通知
 @router.post("/{id}/messages/post", response_model=Optional[MessageModel])
 async def post_new_message(
     request: Request,
@@ -1103,11 +1125,12 @@ async def post_new_message(
         )
 
 
-############################
+# ##########################
 # GetChannelMessage
-############################
+# ##########################
 
 
+# 获取单条消息详情，校验频道归属及权限
 @router.get("/{id}/messages/{message_id}", response_model=Optional[MessageUserResponse])
 async def get_channel_message(
     id: str, message_id: str, user=Depends(get_verified_user)
@@ -1152,11 +1175,12 @@ async def get_channel_message(
     )
 
 
-############################
+# ##########################
 # PinChannelMessage
-############################
+# ##########################
 
 
+# 置顶/取消置顶消息的表单
 class PinMessageForm(BaseModel):
     is_pinned: bool
 
@@ -1164,6 +1188,7 @@ class PinMessageForm(BaseModel):
 @router.post(
     "/{id}/messages/{message_id}/pin", response_model=Optional[MessageUserResponse]
 )
+# 置顶或取消置顶指定消息，并返回更新后的消息体
 async def pin_channel_message(
     id: str, message_id: str, form_data: PinMessageForm, user=Depends(get_verified_user)
 ):
@@ -1215,14 +1240,15 @@ async def pin_channel_message(
         )
 
 
-############################
+# ##########################
 # GetChannelThreadMessages
-############################
+# ##########################
 
 
 @router.get(
     "/{id}/messages/{message_id}/thread", response_model=list[MessageUserResponse]
 )
+# 获取某条消息的线程回复列表
 async def get_channel_thread_messages(
     id: str,
     message_id: str,
@@ -1278,6 +1304,7 @@ async def get_channel_thread_messages(
 ############################
 
 
+# 更新指定消息内容或元数据，并广播消息更新事件
 @router.post(
     "/{id}/messages/{message_id}/update", response_model=Optional[MessageModel]
 )
@@ -1346,15 +1373,17 @@ async def update_message_by_id(
         )
 
 
-############################
+# ##########################
 # AddReactionToMessage
-############################
+# ##########################
 
 
+# 添加/移除消息表情所用表单
 class ReactionForm(BaseModel):
     name: str
 
 
+# 为消息添加表情反应
 @router.post("/{id}/messages/{message_id}/reactions/add", response_model=bool)
 async def add_reaction_to_message(
     id: str, message_id: str, form_data: ReactionForm, user=Depends(get_verified_user)
@@ -1419,11 +1448,12 @@ async def add_reaction_to_message(
         )
 
 
-############################
+# ##########################
 # RemoveReactionById
-############################
+# ##########################
 
 
+# 移除当前用户在消息上的指定表情反应
 @router.post("/{id}/messages/{message_id}/reactions/remove", response_model=bool)
 async def remove_reaction_by_id_and_user_id_and_name(
     id: str, message_id: str, form_data: ReactionForm, user=Depends(get_verified_user)
@@ -1491,11 +1521,12 @@ async def remove_reaction_by_id_and_user_id_and_name(
         )
 
 
-############################
+# ##########################
 # DeleteMessageById
-############################
+# ##########################
 
 
+# 删除指定消息，并向频道/父线程广播删除事件
 @router.delete("/{id}/messages/{message_id}/delete", response_model=bool)
 async def delete_message_by_id(
     id: str, message_id: str, user=Depends(get_verified_user)
