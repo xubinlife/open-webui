@@ -22,6 +22,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
 class Tool(Base):
+    # 工具表定义，存储代码内容、OpenAPI规格、访问控制与阀值
     __tablename__ = "tool"
 
     id = Column(String, primary_key=True, unique=True)
@@ -54,11 +55,13 @@ class Tool(Base):
 
 
 class ToolMeta(BaseModel):
+    # 工具的元信息，例如描述与manifest
     description: Optional[str] = None
     manifest: Optional[dict] = {}
 
 
 class ToolModel(BaseModel):
+    # 工具的基础数据结构
     id: str
     user_id: str
     name: str
@@ -79,10 +82,12 @@ class ToolModel(BaseModel):
 
 
 class ToolUserModel(ToolModel):
+    # 携带用户信息的工具模型
     user: Optional[UserResponse] = None
 
 
 class ToolResponse(BaseModel):
+    # 工具的简化响应模型
     id: str
     user_id: str
     name: str
@@ -93,12 +98,14 @@ class ToolResponse(BaseModel):
 
 
 class ToolUserResponse(ToolResponse):
+    # 携带用户信息的工具响应
     user: Optional[UserResponse] = None
 
     model_config = ConfigDict(extra="allow")
 
 
 class ToolForm(BaseModel):
+    # 创建或更新工具的表单数据
     id: str
     name: str
     content: str
@@ -107,13 +114,16 @@ class ToolForm(BaseModel):
 
 
 class ToolValves(BaseModel):
+    # 用于更新或返回工具阀值配置
     valves: Optional[dict] = None
 
 
 class ToolsTable:
+    # 封装工具的增删改查和权限过滤逻辑
     def insert_new_tool(
         self, user_id: str, form_data: ToolForm, specs: list[dict]
     ) -> Optional[ToolModel]:
+        # 创建并持久化新工具
         with get_db() as db:
             tool = ToolModel(
                 **{
@@ -139,6 +149,7 @@ class ToolsTable:
                 return None
 
     def get_tool_by_id(self, id: str) -> Optional[ToolModel]:
+        # 根据ID获取工具
         try:
             with get_db() as db:
                 tool = db.get(Tool, id)
@@ -147,6 +158,7 @@ class ToolsTable:
             return None
 
     def get_tools(self) -> list[ToolUserModel]:
+        # 获取所有工具并附带创建者信息
         with get_db() as db:
             all_tools = db.query(Tool).order_by(Tool.updated_at.desc()).all()
 
@@ -171,6 +183,7 @@ class ToolsTable:
     def get_tools_by_user_id(
         self, user_id: str, permission: str = "write"
     ) -> list[ToolUserModel]:
+        # 根据用户及权限过滤可用工具
         tools = self.get_tools()
         user_group_ids = {group.id for group in Groups.get_groups_by_member_id(user_id)}
 
@@ -182,6 +195,7 @@ class ToolsTable:
         ]
 
     def get_tool_valves_by_id(self, id: str) -> Optional[dict]:
+        # 获取工具的阀值配置
         try:
             with get_db() as db:
                 tool = db.get(Tool, id)
@@ -191,6 +205,7 @@ class ToolsTable:
             return None
 
     def update_tool_valves_by_id(self, id: str, valves: dict) -> Optional[ToolValves]:
+        # 更新工具的阀值设置
         try:
             with get_db() as db:
                 db.query(Tool).filter_by(id=id).update(
@@ -204,6 +219,7 @@ class ToolsTable:
     def get_user_valves_by_id_and_user_id(
         self, id: str, user_id: str
     ) -> Optional[dict]:
+        # 读取用户级的工具阀值配置
         try:
             user = Users.get_user_by_id(user_id)
             user_settings = user.settings.model_dump() if user.settings else {}
@@ -224,6 +240,7 @@ class ToolsTable:
     def update_user_valves_by_id_and_user_id(
         self, id: str, user_id: str, valves: dict
     ) -> Optional[dict]:
+        # 更新用户对工具的个性化阀值配置
         try:
             user = Users.get_user_by_id(user_id)
             user_settings = user.settings.model_dump() if user.settings else {}
@@ -247,6 +264,7 @@ class ToolsTable:
             return None
 
     def update_tool_by_id(self, id: str, updated: dict) -> Optional[ToolModel]:
+        # 更新工具信息并返回最新数据
         try:
             with get_db() as db:
                 db.query(Tool).filter_by(id=id).update(
@@ -261,6 +279,7 @@ class ToolsTable:
             return None
 
     def delete_tool_by_id(self, id: str) -> bool:
+        # 删除指定工具
         try:
             with get_db() as db:
                 db.query(Tool).filter_by(id=id).delete()

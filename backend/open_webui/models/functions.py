@@ -17,6 +17,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 
 class Function(Base):
+    # 自定义函数表，存储类型、内容、阀值配置及作用域
     __tablename__ = "function"
 
     id = Column(String, primary_key=True, unique=True)
@@ -35,12 +36,14 @@ class Function(Base):
 
 
 class FunctionMeta(BaseModel):
+    # 函数元信息，描述用途与声明文件
     description: Optional[str] = None
     manifest: Optional[dict] = {}
     model_config = ConfigDict(extra="allow")
 
 
 class FunctionModel(BaseModel):
+    # 函数的基础数据模型
     id: str
     user_id: str
     name: str
@@ -56,6 +59,7 @@ class FunctionModel(BaseModel):
 
 
 class FunctionWithValvesModel(BaseModel):
+    # 带阀值配置的函数模型，用于需要传递valves字段的场景
     id: str
     user_id: str
     name: str
@@ -77,10 +81,12 @@ class FunctionWithValvesModel(BaseModel):
 
 
 class FunctionUserResponse(FunctionModel):
+    # 携带创建者信息的函数响应
     user: Optional[UserModel] = None
 
 
 class FunctionResponse(BaseModel):
+    # 对外暴露的函数简化响应结构
     id: str
     user_id: str
     type: str
@@ -93,6 +99,7 @@ class FunctionResponse(BaseModel):
 
 
 class FunctionForm(BaseModel):
+    # 新建或更新函数的表单
     id: str
     name: str
     content: str
@@ -100,13 +107,16 @@ class FunctionForm(BaseModel):
 
 
 class FunctionValves(BaseModel):
+    # 用于更新或返回阀值配置的载体
     valves: Optional[dict] = None
 
 
 class FunctionsTable:
+    # 封装函数相关的增删改查与同步操作
     def insert_new_function(
         self, user_id: str, type: str, form_data: FunctionForm
     ) -> Optional[FunctionModel]:
+        # 创建并保存新函数
         function = FunctionModel(
             **{
                 **form_data.model_dump(),
@@ -134,7 +144,7 @@ class FunctionsTable:
     def sync_functions(
         self, user_id: str, functions: list[FunctionWithValvesModel]
     ) -> list[FunctionWithValvesModel]:
-        # Synchronize functions for a user by updating existing ones, inserting new ones, and removing those that are no longer present.
+        # 同步用户函数：更新已存在的函数，插入新函数，删除缺失的函数
         try:
             with get_db() as db:
                 # Get existing functions
@@ -180,6 +190,7 @@ class FunctionsTable:
             return []
 
     def get_function_by_id(self, id: str) -> Optional[FunctionModel]:
+        # 根据ID获取函数
         try:
             with get_db() as db:
                 function = db.get(Function, id)
@@ -190,6 +201,7 @@ class FunctionsTable:
     def get_functions(
         self, active_only=False, include_valves=False
     ) -> list[FunctionModel | FunctionWithValvesModel]:
+        # 获取函数列表，支持筛选启用状态和附带阀值
         with get_db() as db:
             if active_only:
                 functions = db.query(Function).filter_by(is_active=True).all()
@@ -208,6 +220,7 @@ class FunctionsTable:
                 ]
 
     def get_function_list(self) -> list[FunctionUserResponse]:
+        # 获取按更新时间排序的函数列表并附带用户信息
         with get_db() as db:
             functions = db.query(Function).order_by(Function.updated_at.desc()).all()
             user_ids = list(set(func.user_id for func in functions))
@@ -232,6 +245,7 @@ class FunctionsTable:
     def get_functions_by_type(
         self, type: str, active_only=False
     ) -> list[FunctionModel]:
+        # 按类型获取函数，可选仅返回启用的函数
         with get_db() as db:
             if active_only:
                 return [
@@ -247,6 +261,7 @@ class FunctionsTable:
                 ]
 
     def get_global_filter_functions(self) -> list[FunctionModel]:
+        # 获取全局启用的过滤器函数
         with get_db() as db:
             return [
                 FunctionModel.model_validate(function)
@@ -256,6 +271,7 @@ class FunctionsTable:
             ]
 
     def get_global_action_functions(self) -> list[FunctionModel]:
+        # 获取全局启用的动作函数
         with get_db() as db:
             return [
                 FunctionModel.model_validate(function)
@@ -265,6 +281,7 @@ class FunctionsTable:
             ]
 
     def get_function_valves_by_id(self, id: str) -> Optional[dict]:
+        # 获取函数的阀值配置
         with get_db() as db:
             try:
                 function = db.get(Function, id)
@@ -276,6 +293,7 @@ class FunctionsTable:
     def update_function_valves_by_id(
         self, id: str, valves: dict
     ) -> Optional[FunctionValves]:
+        # 更新函数阀值配置
         with get_db() as db:
             try:
                 function = db.get(Function, id)
@@ -290,6 +308,7 @@ class FunctionsTable:
     def update_function_metadata_by_id(
         self, id: str, metadata: dict
     ) -> Optional[FunctionModel]:
+        # 更新函数的meta字段（合并原有数据）
         with get_db() as db:
             try:
                 function = db.get(Function, id)
@@ -313,6 +332,7 @@ class FunctionsTable:
     def get_user_valves_by_id_and_user_id(
         self, id: str, user_id: str
     ) -> Optional[dict]:
+        # 读取指定用户对某函数的个性化阀值配置
         try:
             user = Users.get_user_by_id(user_id)
             user_settings = user.settings.model_dump() if user.settings else {}
@@ -331,6 +351,7 @@ class FunctionsTable:
     def update_user_valves_by_id_and_user_id(
         self, id: str, user_id: str, valves: dict
     ) -> Optional[dict]:
+        # 更新用户级的函数阀值配置并写回用户设置
         try:
             user = Users.get_user_by_id(user_id)
             user_settings = user.settings.model_dump() if user.settings else {}
@@ -354,6 +375,7 @@ class FunctionsTable:
             return None
 
     def update_function_by_id(self, id: str, updated: dict) -> Optional[FunctionModel]:
+        # 根据传入字段更新函数信息
         with get_db() as db:
             try:
                 db.query(Function).filter_by(id=id).update(
@@ -368,6 +390,7 @@ class FunctionsTable:
                 return None
 
     def deactivate_all_functions(self) -> Optional[bool]:
+        # 将所有函数标记为未启用
         with get_db() as db:
             try:
                 db.query(Function).update(
@@ -382,6 +405,7 @@ class FunctionsTable:
                 return None
 
     def delete_function_by_id(self, id: str) -> bool:
+        # 删除指定ID的函数
         with get_db() as db:
             try:
                 db.query(Function).filter_by(id=id).delete()
