@@ -33,6 +33,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 ####################
 
 
+# 知识库表结构，记录知识库的基础信息与访问控制
 class Knowledge(Base):
     __tablename__ = "knowledge"
 
@@ -64,6 +65,7 @@ class Knowledge(Base):
     updated_at = Column(BigInteger)
 
 
+# Knowledge 数据模型，序列化知识库记录
 class KnowledgeModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -81,6 +83,7 @@ class KnowledgeModel(BaseModel):
     updated_at: int  # timestamp in epoch
 
 
+# 知识库与文件的关联表，用于管理知识库包含的文件
 class KnowledgeFile(Base):
     __tablename__ = "knowledge_file"
 
@@ -102,6 +105,7 @@ class KnowledgeFile(Base):
     )
 
 
+# 知识库文件关联的数据模型
 class KnowledgeFileModel(BaseModel):
     id: str
     knowledge_id: str
@@ -117,18 +121,22 @@ class KnowledgeFileModel(BaseModel):
 ####################
 # Forms
 ####################
+# 附带创建者用户信息的知识库模型
 class KnowledgeUserModel(KnowledgeModel):
     user: Optional[UserResponse] = None
 
 
+# 返回知识库时附带文件元信息列表
 class KnowledgeResponse(KnowledgeModel):
     files: Optional[list[FileMetadataResponse | dict]] = None
 
 
+# 返回知识库与用户信息以及文件元数据
 class KnowledgeUserResponse(KnowledgeUserModel):
     files: Optional[list[FileMetadataResponse | dict]] = None
 
 
+# 创建或更新知识库的表单，包含名称、描述与权限控制
 class KnowledgeForm(BaseModel):
     name: str
     description: str
@@ -136,6 +144,7 @@ class KnowledgeForm(BaseModel):
 
 
 class KnowledgeTable:
+    # 新建知识库并写入数据库
     def insert_new_knowledge(
         self, user_id: str, form_data: KnowledgeForm
     ) -> Optional[KnowledgeModel]:
@@ -162,6 +171,7 @@ class KnowledgeTable:
             except Exception:
                 return None
 
+    # 获取所有知识库并附带创建者信息
     def get_knowledge_bases(self) -> list[KnowledgeUserModel]:
         with get_db() as db:
             all_knowledge = (
@@ -186,6 +196,7 @@ class KnowledgeTable:
                 )
             return knowledge_bases
 
+    # 校验用户对知识库的读写权限，支持用户与组粒度
     def check_access_by_user_id(self, id, user_id, permission="write") -> bool:
         knowledge = self.get_knowledge_by_id(id)
         if not knowledge:
@@ -195,6 +206,7 @@ class KnowledgeTable:
         user_group_ids = {group.id for group in Groups.get_groups_by_member_id(user_id)}
         return has_access(user_id, permission, knowledge.access_control, user_group_ids)
 
+    # 根据用户权限筛选可访问的知识库集合
     def get_knowledge_bases_by_user_id(
         self, user_id: str, permission: str = "write"
     ) -> list[KnowledgeUserModel]:
@@ -209,6 +221,7 @@ class KnowledgeTable:
             )
         ]
 
+    # 按 ID 获取单个知识库详情
     def get_knowledge_by_id(self, id: str) -> Optional[KnowledgeModel]:
         try:
             with get_db() as db:
@@ -217,6 +230,7 @@ class KnowledgeTable:
         except Exception:
             return None
 
+    # 查找包含指定文件的所有知识库
     def get_knowledges_by_file_id(self, file_id: str) -> list[KnowledgeModel]:
         try:
             with get_db() as db:
@@ -232,6 +246,7 @@ class KnowledgeTable:
         except Exception:
             return []
 
+    # 获取知识库下的文件列表
     def get_files_by_id(self, knowledge_id: str) -> list[FileModel]:
         try:
             with get_db() as db:
@@ -245,6 +260,7 @@ class KnowledgeTable:
         except Exception:
             return []
 
+    # 获取知识库文件的元信息，避免传输完整文件数据
     def get_file_metadatas_by_id(self, knowledge_id: str) -> list[FileMetadataResponse]:
         try:
             with get_db() as db:
@@ -253,6 +269,7 @@ class KnowledgeTable:
         except Exception:
             return []
 
+    # 将文件关联到知识库，记录操作者
     def add_file_to_knowledge_by_id(
         self, knowledge_id: str, file_id: str, user_id: str
     ) -> Optional[KnowledgeFileModel]:
@@ -280,6 +297,7 @@ class KnowledgeTable:
             except Exception:
                 return None
 
+    # 解除知识库与文件的关联
     def remove_file_from_knowledge_by_id(self, knowledge_id: str, file_id: str) -> bool:
         try:
             with get_db() as db:
@@ -291,6 +309,7 @@ class KnowledgeTable:
         except Exception:
             return False
 
+    # 清空知识库的文件关联并更新时间戳
     def reset_knowledge_by_id(self, id: str) -> Optional[KnowledgeModel]:
         try:
             with get_db() as db:
@@ -311,6 +330,7 @@ class KnowledgeTable:
             log.exception(e)
             return None
 
+    # 更新知识库的基础信息与访问控制
     def update_knowledge_by_id(
         self, id: str, form_data: KnowledgeForm, overwrite: bool = False
     ) -> Optional[KnowledgeModel]:
@@ -329,6 +349,7 @@ class KnowledgeTable:
             log.exception(e)
             return None
 
+    # 单独更新知识库的自定义数据字段
     def update_knowledge_data_by_id(
         self, id: str, data: dict
     ) -> Optional[KnowledgeModel]:
@@ -347,6 +368,7 @@ class KnowledgeTable:
             log.exception(e)
             return None
 
+    # 删除单个知识库
     def delete_knowledge_by_id(self, id: str) -> bool:
         try:
             with get_db() as db:
@@ -356,6 +378,7 @@ class KnowledgeTable:
         except Exception:
             return False
 
+    # 清空全部知识库数据
     def delete_all_knowledge(self) -> bool:
         with get_db() as db:
             try:

@@ -36,12 +36,14 @@ import datetime
 ####################
 
 
+# 用户设置模型，存储 UI 等自定义配置
 class UserSettings(BaseModel):
     ui: Optional[dict] = {}
     model_config = ConfigDict(extra="allow")
     pass
 
 
+# 用户表结构，记录账号、个人信息以及状态
 class User(Base):
     __tablename__ = "user"
 
@@ -75,6 +77,7 @@ class User(Base):
     created_at = Column(BigInteger)
 
 
+# 用户数据模型，用于序列化数据库记录
 class UserModel(BaseModel):
     id: str
 
@@ -109,12 +112,14 @@ class UserModel(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# 附带活跃状态的用户模型
 class UserStatusModel(UserModel):
     is_active: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
 
+# API Key 表结构，关联用户与密钥信息
 class ApiKey(Base):
     __tablename__ = "api_key"
 
@@ -128,6 +133,7 @@ class ApiKey(Base):
     updated_at = Column(BigInteger, nullable=False)
 
 
+# API Key 数据模型
 class ApiKeyModel(BaseModel):
     id: str
     user_id: str
@@ -146,6 +152,7 @@ class ApiKeyModel(BaseModel):
 ####################
 
 
+# 更新个人资料的表单
 class UpdateProfileForm(BaseModel):
     profile_image_url: str
     name: str
@@ -154,30 +161,36 @@ class UpdateProfileForm(BaseModel):
     date_of_birth: Optional[datetime.date] = None
 
 
+# 用户模型附带所属组 ID 列表
 class UserGroupIdsModel(UserModel):
     group_ids: list[str] = []
 
 
+# 用户接口响应模型
 class UserModelResponse(UserModel):
     model_config = ConfigDict(extra="allow")
 
 
+# 用户列表响应，包含总数
 class UserListResponse(BaseModel):
     users: list[UserModelResponse]
     total: int
 
 
+# 附带组 ID 的用户列表响应
 class UserGroupIdsListResponse(BaseModel):
     users: list[UserGroupIdsModel]
     total: int
 
 
+# 用户状态表单，用于设置状态表情与消息
 class UserStatus(BaseModel):
     status_emoji: Optional[str] = None
     status_message: Optional[str] = None
     status_expires_at: Optional[int] = None
 
 
+# 带状态信息的用户基础响应
 class UserInfoResponse(UserStatus):
     id: str
     name: str
@@ -185,17 +198,20 @@ class UserInfoResponse(UserStatus):
     role: str
 
 
+# 仅返回用户 ID 与名称的简化模型
 class UserIdNameResponse(BaseModel):
     id: str
     name: str
 
 
+# 附带活跃状态的用户名称响应
 class UserIdNameStatusResponse(UserStatus):
     id: str
     name: str
     is_active: Optional[bool] = None
 
 
+# 用户信息列表响应
 class UserInfoListResponse(BaseModel):
     users: list[UserInfoResponse]
     total: int
@@ -206,26 +222,31 @@ class UserIdNameListResponse(BaseModel):
     total: int
 
 
+# 基础姓名与角色响应
 class UserNameResponse(BaseModel):
     id: str
     name: str
     role: str
 
 
+# 完整用户响应，包含邮箱
 class UserResponse(UserNameResponse):
     email: str
 
 
+# 带头像地址的用户响应
 class UserProfileImageResponse(UserNameResponse):
     email: str
     profile_image_url: str
 
 
+# 更新角色的表单
 class UserRoleUpdateForm(BaseModel):
     id: str
     role: str
 
 
+# 更新用户信息与密码的表单
 class UserUpdateForm(BaseModel):
     role: str
     name: str
@@ -234,7 +255,9 @@ class UserUpdateForm(BaseModel):
     password: Optional[str] = None
 
 
+# 数据访问层：封装用户及 API Key 的增删改查
 class UsersTable:
+    # 创建新用户记录，支持默认头像与角色
     def insert_new_user(
         self,
         id: str,
@@ -267,6 +290,7 @@ class UsersTable:
             else:
                 return None
 
+    # 根据用户 ID 查询用户
     def get_user_by_id(self, id: str) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -275,6 +299,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 通过 API Key 反查用户
     def get_user_by_api_key(self, api_key: str) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -288,6 +313,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 根据邮箱查询用户
     def get_user_by_email(self, email: str) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -296,6 +322,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 根据 OAuth provider 与 sub 获取用户
     def get_user_by_oauth_sub(self, provider: str, sub: str) -> Optional[UserModel]:
         try:
             with get_db() as db:  # type: Session
@@ -315,6 +342,7 @@ class UsersTable:
             # You may want to log the exception here
             return None
 
+    # 支持搜索、排序与分页的用户查询
     def get_users(
         self,
         filter: Optional[dict] = None,
@@ -452,6 +480,7 @@ class UsersTable:
                 "total": total,
             }
 
+    # 查询某个组内的所有用户
     def get_users_by_group_id(self, group_id: str) -> list[UserModel]:
         with get_db() as db:
             users = (
@@ -462,19 +491,23 @@ class UsersTable:
             )
             return [UserModel.model_validate(user) for user in users]
 
+    # 根据用户 ID 列表批量查询
     def get_users_by_user_ids(self, user_ids: list[str]) -> list[UserStatusModel]:
         with get_db() as db:
             users = db.query(User).filter(User.id.in_(user_ids)).all()
             return [UserModel.model_validate(user) for user in users]
 
+    # 获取用户总数
     def get_num_users(self) -> Optional[int]:
         with get_db() as db:
             return db.query(User).count()
 
+    # 判断是否存在任何用户
     def has_users(self) -> bool:
         with get_db() as db:
             return db.query(db.query(User).exists()).scalar()
 
+    # 获取最早创建的用户
     def get_first_user(self) -> UserModel:
         try:
             with get_db() as db:
@@ -483,6 +516,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 读取用户设置中的通知 webhook 地址
     def get_user_webhook_url_by_id(self, id: str) -> Optional[str]:
         try:
             with get_db() as db:
@@ -499,6 +533,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 统计当天活跃用户数量
     def get_num_users_active_today(self) -> Optional[int]:
         with get_db() as db:
             current_timestamp = int(datetime.datetime.now().timestamp())
@@ -508,6 +543,7 @@ class UsersTable:
             )
             return query.count()
 
+    # 更新用户角色
     def update_user_role_by_id(self, id: str, role: str) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -518,6 +554,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 更新用户状态信息
     def update_user_status_by_id(
         self, id: str, form_data: UserStatus
     ) -> Optional[UserModel]:
@@ -533,6 +570,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 更新用户头像地址
     def update_user_profile_image_url_by_id(
         self, id: str, profile_image_url: str
     ) -> Optional[UserModel]:
@@ -548,6 +586,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 节流更新用户最近活跃时间
     @throttle(DATABASE_USER_ACTIVE_STATUS_UPDATE_INTERVAL)
     def update_last_active_by_id(self, id: str) -> Optional[UserModel]:
         try:
@@ -562,6 +601,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 为用户新增或更新 OAuth 标识
     def update_user_oauth_by_id(
         self, id: str, provider: str, sub: str
     ) -> Optional[UserModel]:
@@ -594,6 +634,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 通用字段更新
     def update_user_by_id(self, id: str, updated: dict) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -607,6 +648,7 @@ class UsersTable:
             print(e)
             return None
 
+    # 合并更新用户设置
     def update_user_settings_by_id(self, id: str, updated: dict) -> Optional[UserModel]:
         try:
             with get_db() as db:
@@ -625,6 +667,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 删除用户并移除关联的群组与聊天记录
     def delete_user_by_id(self, id: str) -> bool:
         try:
             # Remove User from Groups
@@ -644,6 +687,7 @@ class UsersTable:
         except Exception:
             return False
 
+    # 获取用户的 API Key
     def get_user_api_key_by_id(self, id: str) -> Optional[str]:
         try:
             with get_db() as db:
@@ -652,6 +696,7 @@ class UsersTable:
         except Exception:
             return None
 
+    # 重置用户 API Key
     def update_user_api_key_by_id(self, id: str, api_key: str) -> bool:
         try:
             with get_db() as db:
@@ -674,6 +719,7 @@ class UsersTable:
         except Exception:
             return False
 
+    # 删除用户 API Key
     def delete_user_api_key_by_id(self, id: str) -> bool:
         try:
             with get_db() as db:
@@ -683,11 +729,13 @@ class UsersTable:
         except Exception:
             return False
 
+    # 过滤得到有效存在的用户 ID 列表
     def get_valid_user_ids(self, user_ids: list[str]) -> list[str]:
         with get_db() as db:
             users = db.query(User).filter(User.id.in_(user_ids)).all()
             return [user.id for user in users]
 
+    # 获取任意一位管理员用户
     def get_super_admin_user(self) -> Optional[UserModel]:
         with get_db() as db:
             user = db.query(User).filter_by(role="admin").first()
@@ -696,6 +744,7 @@ class UsersTable:
             else:
                 return None
 
+    # 计算近期活跃的在线用户数
     def get_active_user_count(self) -> int:
         with get_db() as db:
             # Consider user active if last_active_at within the last 3 minutes
@@ -705,6 +754,7 @@ class UsersTable:
             )
             return count
 
+    # 判断用户是否在 3 分钟内活跃
     def is_user_active(self, user_id: str) -> bool:
         with get_db() as db:
             user = db.query(User).filter_by(id=user_id).first()

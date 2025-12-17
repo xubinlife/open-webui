@@ -15,6 +15,7 @@ from open_webui.utils.access_control import has_access
 ####################
 
 
+# 提示词表模型，保存用户自定义指令及权限
 class Prompt(Base):
     __tablename__ = "prompt"
 
@@ -42,6 +43,7 @@ class Prompt(Base):
     #   }
 
 
+# 提示词数据模型，用于校验和序列化数据库记录
 class PromptModel(BaseModel):
     command: str
     user_id: str
@@ -58,10 +60,12 @@ class PromptModel(BaseModel):
 ####################
 
 
+# 携带用户信息的提示词返回体
 class PromptUserResponse(PromptModel):
     user: Optional[UserResponse] = None
 
 
+# 创建或更新提示词的表单结构
 class PromptForm(BaseModel):
     command: str
     title: str
@@ -69,7 +73,9 @@ class PromptForm(BaseModel):
     access_control: Optional[dict] = None
 
 
+# 提示词表操作封装，提供增删改查和权限过滤
 class PromptsTable:
+    # 插入新的提示词记录
     def insert_new_prompt(
         self, user_id: str, form_data: PromptForm
     ) -> Optional[PromptModel]:
@@ -94,6 +100,7 @@ class PromptsTable:
         except Exception:
             return None
 
+    # 根据命令关键字获取提示词
     def get_prompt_by_command(self, command: str) -> Optional[PromptModel]:
         try:
             with get_db() as db:
@@ -102,6 +109,7 @@ class PromptsTable:
         except Exception:
             return None
 
+    # 获取全部提示词并附带用户信息
     def get_prompts(self) -> list[PromptUserResponse]:
         with get_db() as db:
             all_prompts = db.query(Prompt).order_by(Prompt.timestamp.desc()).all()
@@ -125,6 +133,7 @@ class PromptsTable:
 
             return prompts
 
+    # 获取指定用户可访问的提示词列表
     def get_prompts_by_user_id(
         self, user_id: str, permission: str = "write"
     ) -> list[PromptUserResponse]:
@@ -138,6 +147,7 @@ class PromptsTable:
             or has_access(user_id, permission, prompt.access_control, user_group_ids)
         ]
 
+    # 通过命令关键字更新提示词内容
     def update_prompt_by_command(
         self, command: str, form_data: PromptForm
     ) -> Optional[PromptModel]:
@@ -153,6 +163,7 @@ class PromptsTable:
         except Exception:
             return None
 
+    # 删除指定命令的提示词
     def delete_prompt_by_command(self, command: str) -> bool:
         try:
             with get_db() as db:
