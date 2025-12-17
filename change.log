@@ -1,0 +1,41 @@
+# Backend Python to Go rewrite progress
+
+[backend/open_webui]
+__init__.py: 0%
+config.py: 60%
+constants.py: 40%
+env.py: 70%
+functions.py: 30%
+main.py: 40%
+tasks.py: 20%
+
+[backend/open_webui/models]
+users.py: 20%
+conversations.py: 20%
+files.py: 20%
+other_models: 0% (TODO)
+
+[backend/open_webui/routers]
+all_endpoints: 10% (health stub only)
+
+[backend/open_webui/utils]
+redis.py: 20%
+others: 0% (TODO)
+
+[backend/open_webui/internal]
+auth.py: 20%
+db.py: 10%
+
+[backend/open_webui/retrieval]
+base.py: 20%
+
+[backend/open_webui/socket]
+__init__.py: 20%
+
+[backend/open_webui/storage]
+__init__.py: 20%
+
+[backend/open_webui/data]
+shared_assets: 0% (TODO)
+
+# TODO: 补充剩余文件的迁移比例并持续更新。
