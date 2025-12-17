@@ -46,6 +46,7 @@ router = APIRouter()
 
 
 @router.get("/", response_model=list[FolderNameIdResponse])
+# 获取当前用户可见的文件夹列表，并校验权限开关
 async def get_folders(request: Request, user=Depends(get_verified_user)):
     if request.app.state.config.ENABLE_FOLDERS is False:
         raise HTTPException(
@@ -109,6 +110,7 @@ async def get_folders(request: Request, user=Depends(get_verified_user)):
 
 
 @router.post("/")
+# 创建根级文件夹，避免同名冲突
 def create_folder(form_data: FolderForm, user=Depends(get_verified_user)):
     folder = Folders.get_folder_by_parent_id_and_user_id_and_name(
         None, user.id, form_data.name
@@ -138,6 +140,7 @@ def create_folder(form_data: FolderForm, user=Depends(get_verified_user)):
 
 
 @router.get("/{id}", response_model=Optional[FolderModel])
+# 根据 ID 查询文件夹，未找到则返回 404
 async def get_folder_by_id(id: str, user=Depends(get_verified_user)):
     folder = Folders.get_folder_by_id_and_user_id(id, user.id)
     if folder:
@@ -155,6 +158,7 @@ async def get_folder_by_id(id: str, user=Depends(get_verified_user)):
 
 
 @router.post("/{id}/update")
+# 更新文件夹名称或数据，包含同名检查
 async def update_folder_name_by_id(
     id: str, form_data: FolderUpdateForm, user=Depends(get_verified_user)
 ):
@@ -195,10 +199,12 @@ async def update_folder_name_by_id(
 
 
 class FolderParentIdForm(BaseModel):
+    # 更新父级目录 ID，None 表示提升到根目录
     parent_id: Optional[str] = None
 
 
 @router.post("/{id}/update/parent")
+# 变更文件夹父级关系，防止目标目录重名
 async def update_folder_parent_id_by_id(
     id: str, form_data: FolderParentIdForm, user=Depends(get_verified_user)
 ):
@@ -239,10 +245,12 @@ async def update_folder_parent_id_by_id(
 
 
 class FolderIsExpandedForm(BaseModel):
+    # 前端折叠状态存储
     is_expanded: bool
 
 
 @router.post("/{id}/update/expanded")
+# 更新文件夹展开状态，便于前端保持 UI 状态
 async def update_folder_is_expanded_by_id(
     id: str, form_data: FolderIsExpandedForm, user=Depends(get_verified_user)
 ):
@@ -273,6 +281,7 @@ async def update_folder_is_expanded_by_id(
 
 
 @router.delete("/{id}")
+# 删除文件夹，可选择是否同时删除子内容，包含权限校验
 async def delete_folder_by_id(
     request: Request,
     id: str,

@@ -54,6 +54,7 @@ router = APIRouter()
 PAGE_ITEM_COUNT = 30
 
 
+# 分页获取用户列表并附带所在群组 ID，仅管理员可用
 @router.get("/", response_model=UserGroupIdsListResponse)
 async def get_users(
     query: Optional[str] = None,
@@ -96,6 +97,7 @@ async def get_users(
     }
 
 
+# 获取所有用户的完整信息列表，管理员专用
 @router.get("/all", response_model=UserInfoListResponse)
 async def get_all_users(
     user=Depends(get_admin_user),
@@ -103,6 +105,7 @@ async def get_all_users(
     return Users.get_users()
 
 
+# 根据关键字搜索用户，允许已验证用户访问
 @router.get("/search", response_model=UserInfoListResponse)
 async def search_users(
     query: Optional[str] = None,
@@ -136,6 +139,7 @@ async def search_users(
 ############################
 
 
+# 获取当前用户所在的群组列表
 @router.get("/groups")
 async def get_user_groups(user=Depends(get_verified_user)):
     return Groups.get_groups_by_member_id(user.id)
@@ -146,6 +150,7 @@ async def get_user_groups(user=Depends(get_verified_user)):
 ############################
 
 
+# 返回当前用户的权限配置，包含共享、聊天和功能级别
 @router.get("/permissions")
 async def get_user_permissisions(request: Request, user=Depends(get_verified_user)):
     user_permissions = get_permissions(
@@ -158,6 +163,7 @@ async def get_user_permissisions(request: Request, user=Depends(get_verified_use
 ############################
 # User Default Permissions
 ############################
+# 工作区相关权限设置，控制群组和共享等开关
 class WorkspacePermissions(BaseModel):
     models: bool = False
     knowledge: bool = False
@@ -171,6 +177,7 @@ class WorkspacePermissions(BaseModel):
     tools_export: bool = False
 
 
+# 资源共享权限，控制聊天或文件的分享能力
 class SharingPermissions(BaseModel):
     models: bool = False
     public_models: bool = False
@@ -184,6 +191,7 @@ class SharingPermissions(BaseModel):
     public_notes: bool = True
 
 
+# 聊天功能权限，例如归档和隐藏控制
 class ChatPermissions(BaseModel):
     controls: bool = True
     valves: bool = True
@@ -206,6 +214,7 @@ class ChatPermissions(BaseModel):
     temporary_enforced: bool = False
 
 
+# 其他功能权限，例如工具或提示词访问
 class FeaturesPermissions(BaseModel):
     api_keys: bool = False
     notes: bool = True
@@ -218,6 +227,7 @@ class FeaturesPermissions(BaseModel):
     code_interpreter: bool = True
 
 
+# 汇总用户默认权限配置
 class UserPermissions(BaseModel):
     workspace: WorkspacePermissions
     sharing: SharingPermissions
@@ -225,6 +235,7 @@ class UserPermissions(BaseModel):
     features: FeaturesPermissions
 
 
+# 获取系统默认的用户权限配置，管理员可查看
 @router.get("/default/permissions", response_model=UserPermissions)
 async def get_default_user_permissions(request: Request, user=Depends(get_admin_user)):
     return {
@@ -243,6 +254,7 @@ async def get_default_user_permissions(request: Request, user=Depends(get_admin_
     }
 
 
+# 更新默认用户权限配置，仅管理员可操作
 @router.post("/default/permissions")
 async def update_default_user_permissions(
     request: Request, form_data: UserPermissions, user=Depends(get_admin_user)
@@ -256,6 +268,7 @@ async def update_default_user_permissions(
 ############################
 
 
+# 获取当前会话用户的设置，如偏好与主题
 @router.get("/user/settings", response_model=Optional[UserSettings])
 async def get_user_settings_by_session_user(user=Depends(get_verified_user)):
     user = Users.get_user_by_id(user.id)
@@ -273,6 +286,7 @@ async def get_user_settings_by_session_user(user=Depends(get_verified_user)):
 ############################
 
 
+# 更新当前用户设置，自动剔除无权限的字段
 @router.post("/user/settings/update", response_model=UserSettings)
 async def update_user_settings_by_session_user(
     request: Request, form_data: UserSettings, user=Depends(get_verified_user)
@@ -305,6 +319,7 @@ async def update_user_settings_by_session_user(
 ############################
 
 
+# 获取当前用户在线状态信息
 @router.get("/user/status")
 async def get_user_status_by_session_user(user=Depends(get_verified_user)):
     user = Users.get_user_by_id(user.id)
@@ -322,6 +337,7 @@ async def get_user_status_by_session_user(user=Depends(get_verified_user)):
 ############################
 
 
+# 更新当前用户的状态标记
 @router.post("/user/status/update")
 async def update_user_status_by_session_user(
     form_data: UserStatus, user=Depends(get_verified_user)
@@ -342,6 +358,7 @@ async def update_user_status_by_session_user(
 ############################
 
 
+# 获取当前用户的基础信息
 @router.get("/user/info", response_model=Optional[dict])
 async def get_user_info_by_session_user(user=Depends(get_verified_user)):
     user = Users.get_user_by_id(user.id)
@@ -359,6 +376,7 @@ async def get_user_info_by_session_user(user=Depends(get_verified_user)):
 ############################
 
 
+# 更新当前用户的基础信息字段
 @router.post("/user/info/update", response_model=Optional[dict])
 async def update_user_info_by_session_user(
     form_data: dict, user=Depends(get_verified_user)
@@ -396,6 +414,7 @@ class UserActiveResponse(UserStatus):
     model_config = ConfigDict(extra="allow")
 
 
+# 根据用户 ID 获取活跃状态与基本信息，支持共享聊天映射
 @router.get("/{user_id}", response_model=UserActiveResponse)
 async def get_user_by_id(user_id: str, user=Depends(get_verified_user)):
     # Check if user_id is a shared chat
@@ -427,6 +446,7 @@ async def get_user_by_id(user_id: str, user=Depends(get_verified_user)):
         )
 
 
+# 获取用户的 OAuth 会话记录，仅管理员可查
 @router.get("/{user_id}/oauth/sessions")
 async def get_user_oauth_sessions_by_id(user_id: str, user=Depends(get_admin_user)):
     sessions = OAuthSessions.get_sessions_by_user_id(user_id)
@@ -444,6 +464,7 @@ async def get_user_oauth_sessions_by_id(user_id: str, user=Depends(get_admin_use
 ############################
 
 
+# 获取用户头像资源，支持 URL 或 Base64
 @router.get("/{user_id}/profile/image")
 async def get_user_profile_image_by_id(user_id: str, user=Depends(get_verified_user)):
     user = Users.get_user_by_id(user_id)
@@ -481,6 +502,7 @@ async def get_user_profile_image_by_id(user_id: str, user=Depends(get_verified_u
 ############################
 
 
+# 查询指定用户是否活跃
 @router.get("/{user_id}/active", response_model=dict)
 async def get_user_active_status_by_id(user_id: str, user=Depends(get_verified_user)):
     return {
@@ -493,6 +515,7 @@ async def get_user_active_status_by_id(user_id: str, user=Depends(get_verified_u
 ############################
 
 
+# 更新目标用户的账户信息与权限
 @router.post("/{user_id}/update", response_model=Optional[UserModel])
 async def update_user_by_id(
     user_id: str,
@@ -575,6 +598,7 @@ async def update_user_by_id(
 ############################
 
 
+# 删除指定用户账号，保护首个管理员账户
 @router.delete("/{user_id}", response_model=bool)
 async def delete_user_by_id(user_id: str, user=Depends(get_admin_user)):
     # Prevent deletion of the primary admin user
@@ -615,6 +639,7 @@ async def delete_user_by_id(user_id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 获取指定用户所属群组列表，仅管理员可用
 @router.get("/{user_id}/groups")
 async def get_user_groups_by_id(user_id: str, user=Depends(get_admin_user)):
     return Groups.get_groups_by_member_id(user_id)

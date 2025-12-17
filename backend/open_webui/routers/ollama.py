@@ -78,6 +78,7 @@ log.setLevel(SRC_LOG_LEVELS["OLLAMA"])
 ##########################################
 
 
+# 发送 GET 请求到指定 Ollama 节点，可携带鉴权与用户信息头
 async def send_get_request(url, key=None, user: UserModel = None):
     timeout = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST)
     try:
@@ -102,6 +103,7 @@ async def send_get_request(url, key=None, user: UserModel = None):
         return None
 
 
+# 清理 aiohttp 响应与会话对象，避免连接泄漏
 async def cleanup_response(
     response: Optional[aiohttp.ClientResponse],
     session: Optional[aiohttp.ClientSession],
@@ -112,6 +114,7 @@ async def cleanup_response(
         await session.close()
 
 
+# 发送 POST 请求到 Ollama，并根据需求返回流式响应或完整 JSON
 async def send_post_request(
     url: str,
     payload: Union[str, bytes],
@@ -193,6 +196,7 @@ async def send_post_request(
             await cleanup_response(r, session)
 
 
+# 根据节点索引或 URL 从配置表中提取 API Key（兼容旧版配置）
 def get_api_key(idx, url, configs):
     parsed_url = urlparse(url)
     base_url = f"{parsed_url.scheme}://{parsed_url.netloc}"
@@ -216,11 +220,13 @@ async def get_status():
     return {"status": True}
 
 
+# 连接校验表单，用于验证远端 Ollama 节点是否可访问
 class ConnectionVerificationForm(BaseModel):
     url: str
     key: Optional[str] = None
 
 
+# 管理员触发的连接检测，检查节点版本接口是否正常
 @router.post("/verify")
 async def verify_connection(
     form_data: ConnectionVerificationForm, user=Depends(get_admin_user)
@@ -275,12 +281,14 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
     }
 
 
+# Ollama 全局配置表单，支持启用开关、多节点 URL 及凭证
 class OllamaConfigForm(BaseModel):
     ENABLE_OLLAMA_API: Optional[bool] = None
     OLLAMA_BASE_URLS: list[str]
     OLLAMA_API_CONFIGS: dict
 
 
+# 管理员更新 Ollama 配置，并同步清理无效的节点配置
 @router.post("/config/update")
 async def update_config(
     request: Request, form_data: OllamaConfigForm, user=Depends(get_admin_user)
@@ -322,6 +330,7 @@ def merge_ollama_models_lists(model_lists):
     return list(merged_models.values())
 
 
+# 聚合所有 Ollama 节点的模型列表，并缓存结果
 @cached(
     ttl=MODELS_CACHE_TTL,
     key=lambda _, user: f"ollama_all_models_{user.id}" if user else "ollama_all_models",
@@ -423,6 +432,7 @@ async def get_all_models(request: Request, user: UserModel = None):
     return models
 
 
+# 针对普通用户过滤有权限的模型，结合数据库访问控制
 async def get_filtered_models(models, user):
     # Filter models based on user access control
     filtered_models = []
@@ -438,6 +448,7 @@ async def get_filtered_models(models, user):
 
 @router.get("/api/tags")
 @router.get("/api/tags/{url_idx}")
+# 获取指定或全部节点的模型标签列表，普通用户会做权限过滤
 async def get_ollama_tags(
     request: Request, url_idx: Optional[int] = None, user=Depends(get_verified_user)
 ):
@@ -553,6 +564,7 @@ async def get_ollama_loaded_models(request: Request, user=Depends(get_admin_user
 
 @router.get("/api/version")
 @router.get("/api/version/{url_idx}")
+# 查询单个或所有节点的 Ollama 版本，选择最低版本作为集群基线
 async def get_ollama_versions(request: Request, url_idx: Optional[int] = None):
     if request.app.state.config.ENABLE_OLLAMA_API:
         if url_idx is None:
@@ -624,6 +636,7 @@ async def get_ollama_versions(request: Request, url_idx: Optional[int] = None):
         return {"version": False}
 
 
+# 模型名称表单，兼容不同行为的通用字段
 class ModelNameForm(BaseModel):
     model: Optional[str] = None
     model_config = ConfigDict(
@@ -632,6 +645,7 @@ class ModelNameForm(BaseModel):
 
 
 @router.post("/api/unload")
+# 卸载指定模型在所有节点的加载，强制 keep_alive=0 触发释放
 async def unload_model(
     request: Request,
     form_data: ModelNameForm,
@@ -699,6 +713,7 @@ async def unload_model(
 
 @router.post("/api/pull")
 @router.post("/api/pull/{url_idx}")
+# 管理员从远端仓库拉取模型，可指定节点
 async def pull_model(
     request: Request,
     form_data: ModelNameForm,
@@ -722,6 +737,7 @@ async def pull_model(
     )
 
 
+# 推送模型到远端仓库的表单
 class PushModelForm(BaseModel):
     model: str
     insecure: Optional[bool] = None
@@ -730,6 +746,7 @@ class PushModelForm(BaseModel):
 
 @router.delete("/api/push")
 @router.delete("/api/push/{url_idx}")
+# 将本地模型推送到指定 Ollama 节点或默认节点
 async def push_model(
     request: Request,
     form_data: PushModelForm,
@@ -759,6 +776,7 @@ async def push_model(
     )
 
 
+# 创建模型的表单，可传入路径和额外参数
 class CreateModelForm(BaseModel):
     model: Optional[str] = None
     stream: Optional[bool] = None
@@ -769,6 +787,7 @@ class CreateModelForm(BaseModel):
 
 @router.post("/api/create")
 @router.post("/api/create/{url_idx}")
+# 管理员在指定节点创建模型（如从文件路径加载）
 async def create_model(
     request: Request,
     form_data: CreateModelForm,
@@ -786,6 +805,7 @@ async def create_model(
     )
 
 
+# 模型复制表单，指定源模型与目标名称
 class CopyModelForm(BaseModel):
     source: str
     destination: str
@@ -793,6 +813,7 @@ class CopyModelForm(BaseModel):
 
 @router.post("/api/copy")
 @router.post("/api/copy/{url_idx}")
+# 将模型在节点内复制到新名称，支持前缀剥离
 async def copy_model(
     request: Request,
     form_data: CopyModelForm,
@@ -853,6 +874,7 @@ async def copy_model(
 
 @router.delete("/api/delete")
 @router.delete("/api/delete/{url_idx}")
+# 删除指定模型，未显式传节点时根据已加载映射寻找
 async def delete_model(
     request: Request,
     form_data: ModelNameForm,
@@ -918,6 +940,7 @@ async def delete_model(
 
 
 @router.post("/api/show")
+# 查看模型详细信息，辅助检查绑定的 URL 与前缀
 async def show_model_info(
     request: Request, form_data: ModelNameForm, user=Depends(get_verified_user)
 ):
@@ -973,6 +996,7 @@ async def show_model_info(
         )
 
 
+# 批量或单条文本嵌入请求表单
 class GenerateEmbedForm(BaseModel):
     model: str
     input: list[str] | str
@@ -987,6 +1011,7 @@ class GenerateEmbedForm(BaseModel):
 
 @router.post("/api/embed")
 @router.post("/api/embed/{url_idx}")
+# 生成文本嵌入，支持自动选择节点并处理模型前缀
 async def embed(
     request: Request,
     form_data: GenerateEmbedForm,
@@ -1060,6 +1085,7 @@ async def embed(
         )
 
 
+# 单条 prompt 嵌入表单（兼容 OpenAI 风格参数）
 class GenerateEmbeddingsForm(BaseModel):
     model: str
     prompt: str
@@ -1069,6 +1095,7 @@ class GenerateEmbeddingsForm(BaseModel):
 
 @router.post("/api/embeddings")
 @router.post("/api/embeddings/{url_idx}")
+# 生成单条文本的嵌入结果
 async def embeddings(
     request: Request,
     form_data: GenerateEmbeddingsForm,
@@ -1142,6 +1169,7 @@ async def embeddings(
         )
 
 
+# 文本补全表单，参数与 Ollama /api/generate 对齐
 class GenerateCompletionForm(BaseModel):
     model: str
     prompt: str
@@ -1159,6 +1187,7 @@ class GenerateCompletionForm(BaseModel):
 
 @router.post("/api/generate")
 @router.post("/api/generate/{url_idx}")
+# 生成文本补全，支持 keep_alive 控制模型驻留
 async def generate_completion(
     request: Request,
     form_data: GenerateCompletionForm,
@@ -1200,6 +1229,7 @@ async def generate_completion(
     )
 
 
+# 聊天消息结构，兼容 role/content 字段
 class ChatMessage(BaseModel):
     role: str
     content: Optional[str] = None
@@ -1220,6 +1250,7 @@ class ChatMessage(BaseModel):
         return field_value
 
 
+# 聊天补全表单，封装消息列表与生成选项
 class GenerateChatCompletionForm(BaseModel):
     model: str
     messages: list[ChatMessage]
@@ -1234,6 +1265,7 @@ class GenerateChatCompletionForm(BaseModel):
     )
 
 
+# 根据模型或节点索引确定请求的 Ollama URL
 async def get_ollama_url(request: Request, model: str, url_idx: Optional[int] = None):
     if url_idx is None:
         models = request.app.state.OLLAMA_MODELS
@@ -1249,6 +1281,7 @@ async def get_ollama_url(request: Request, model: str, url_idx: Optional[int] = 
 
 @router.post("/api/chat")
 @router.post("/api/chat/{url_idx}")
+# 聊天接口，自动选择节点并处理流式返回
 async def generate_chat_completion(
     request: Request,
     form_data: dict,
@@ -1334,11 +1367,13 @@ async def generate_chat_completion(
 
 
 # TODO: we should update this part once Ollama supports other types
+# OpenAI 风格的多段消息内容结构
 class OpenAIChatMessageContent(BaseModel):
     type: str
     model_config = ConfigDict(extra="allow")
 
 
+# OpenAI 聊天消息封装，兼容字符串或分段内容
 class OpenAIChatMessage(BaseModel):
     role: str
     content: Union[Optional[str], list[OpenAIChatMessageContent]]
@@ -1346,6 +1381,7 @@ class OpenAIChatMessage(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+# OpenAI 聊天补全兼容表单
 class OpenAIChatCompletionForm(BaseModel):
     model: str
     messages: list[OpenAIChatMessage]
@@ -1353,6 +1389,7 @@ class OpenAIChatCompletionForm(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+# OpenAI 文本补全兼容表单
 class OpenAICompletionForm(BaseModel):
     model: str
     prompt: str
@@ -1362,6 +1399,7 @@ class OpenAICompletionForm(BaseModel):
 
 @router.post("/v1/completions")
 @router.post("/v1/completions/{url_idx}")
+# OpenAI 兼容的 completions 接口，复用 Ollama 生成能力
 async def generate_openai_completion(
     request: Request,
     form_data: dict,
@@ -1441,6 +1479,7 @@ async def generate_openai_completion(
 
 @router.post("/v1/chat/completions")
 @router.post("/v1/chat/completions/{url_idx}")
+# OpenAI 兼容的 chat 接口，追加系统提示并处理工具调用
 async def generate_openai_chat_completion(
     request: Request,
     form_data: dict,
@@ -1523,6 +1562,7 @@ async def generate_openai_chat_completion(
 
 @router.get("/v1/models")
 @router.get("/v1/models/{url_idx}")
+# OpenAI 兼容的模型列表接口，透传 Ollama 标签
 async def get_openai_models(
     request: Request,
     url_idx: Optional[int] = None,
@@ -1593,14 +1633,17 @@ async def get_openai_models(
     }
 
 
+# 从远端 URL 下载模型或文件的表单
 class UrlForm(BaseModel):
     url: str
 
 
+# 上传二进制模型块的表单
 class UploadBlobForm(BaseModel):
     filename: str
 
 
+# 解析 Hugging Face URL，提取文件名
 def parse_huggingface_url(hf_url):
     try:
         # Parse the URL
@@ -1617,6 +1660,7 @@ def parse_huggingface_url(hf_url):
         return None
 
 
+# 以流式方式下载文件并计算哈希，便于后续上传到 Ollama
 async def download_file_stream(
     ollama_url, file_url, file_path, file_name, chunk_size=1024 * 1024
 ):
@@ -1674,6 +1718,7 @@ async def download_file_stream(
 # url = "https://huggingface.co/TheBloke/stablelm-zephyr-3b-GGUF/resolve/main/stablelm-zephyr-3b.Q2_K.gguf"
 @router.post("/models/download")
 @router.post("/models/download/{url_idx}")
+# 下载 Hugging Face 或 GitHub 上的模型文件，并流式回传进度
 async def download_model(
     request: Request,
     form_data: UrlForm,
@@ -1707,6 +1752,7 @@ async def download_model(
 # TODO: Progress bar does not reflect size & duration of upload.
 @router.post("/models/upload")
 @router.post("/models/upload/{url_idx}")
+# 上传本地模型文件，边计算哈希边流式推送到 Ollama
 async def upload_model(
     request: Request,
     file: UploadFile = File(...),

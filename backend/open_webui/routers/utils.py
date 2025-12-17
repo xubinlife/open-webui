@@ -23,6 +23,7 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 router = APIRouter()
 
 
+# 根据邮箱生成 gravatar 头像 URL，需已验证用户调用
 @router.get("/gravatar")
 async def get_gravatar(email: str, user=Depends(get_verified_user)):
     return get_gravatar_url(email)
@@ -32,6 +33,7 @@ class CodeForm(BaseModel):
     code: str
 
 
+# 使用 Black 对提交的代码进行格式化，管理员可用作快速美化工具
 @router.post("/code/format")
 async def format_code(form_data: CodeForm, user=Depends(get_admin_user)):
     try:
@@ -43,6 +45,7 @@ async def format_code(form_data: CodeForm, user=Depends(get_admin_user)):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+# 根据配置选择执行引擎运行代码，目前支持 Jupyter，返回执行输出
 @router.post("/code/execute")
 async def execute_code(
     request: Request, form_data: CodeForm, user=Depends(get_verified_user)

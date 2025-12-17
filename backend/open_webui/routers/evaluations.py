@@ -23,6 +23,7 @@ router = APIRouter()
 ############################
 
 
+# 获取当前评测相关的开关配置，只有管理员可以访问
 @router.get("/config")
 async def get_config(request: Request, user=Depends(get_admin_user)):
     return {
@@ -36,11 +37,13 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
 ############################
 
 
+# 更新评测配置的表单，均为可选字段
 class UpdateConfigForm(BaseModel):
     ENABLE_EVALUATION_ARENA_MODELS: Optional[bool] = None
     EVALUATION_ARENA_MODELS: Optional[list[dict]] = None
 
 
+# 管理员更新评测配置，支持动态调整开关与模型列表
 @router.post("/config")
 async def update_config(
     request: Request,
@@ -58,30 +61,35 @@ async def update_config(
     }
 
 
+# 管理员获取所有用户反馈列表
 @router.get("/feedbacks/all", response_model=list[FeedbackResponse])
 async def get_all_feedbacks(user=Depends(get_admin_user)):
     feedbacks = Feedbacks.get_all_feedbacks()
     return feedbacks
 
 
+# 管理员删除所有反馈记录
 @router.delete("/feedbacks/all")
 async def delete_all_feedbacks(user=Depends(get_admin_user)):
     success = Feedbacks.delete_all_feedbacks()
     return success
 
 
+# 管理员导出所有反馈的完整字段，用于分析或备份
 @router.get("/feedbacks/all/export", response_model=list[FeedbackModel])
 async def get_all_feedbacks(user=Depends(get_admin_user)):
     feedbacks = Feedbacks.get_all_feedbacks()
     return feedbacks
 
 
+# 普通用户或管理员获取自身提交的反馈列表
 @router.get("/feedbacks/user", response_model=list[FeedbackUserResponse])
 async def get_feedbacks(user=Depends(get_verified_user)):
     feedbacks = Feedbacks.get_feedbacks_by_user_id(user.id)
     return feedbacks
 
 
+# 普通用户或管理员删除自身的反馈记录
 @router.delete("/feedbacks", response_model=bool)
 async def delete_feedbacks(user=Depends(get_verified_user)):
     success = Feedbacks.delete_feedbacks_by_user_id(user.id)
@@ -91,6 +99,7 @@ async def delete_feedbacks(user=Depends(get_verified_user)):
 PAGE_ITEM_COUNT = 30
 
 
+# 管理员分页获取反馈列表，支持排序与方向参数
 @router.get("/feedbacks/list", response_model=FeedbackListResponse)
 async def get_feedbacks(
     order_by: Optional[str] = None,
@@ -113,6 +122,7 @@ async def get_feedbacks(
     return result
 
 
+# 创建新的反馈记录，校验失败时返回 400
 @router.post("/feedback", response_model=FeedbackModel)
 async def create_feedback(
     request: Request,
@@ -129,6 +139,7 @@ async def create_feedback(
     return feedback
 
 
+# 根据反馈 ID 获取详情，管理员可查看所有，普通用户仅能查看自己的
 @router.get("/feedback/{id}", response_model=FeedbackModel)
 async def get_feedback_by_id(id: str, user=Depends(get_verified_user)):
     if user.role == "admin":
@@ -144,6 +155,7 @@ async def get_feedback_by_id(id: str, user=Depends(get_verified_user)):
     return feedback
 
 
+# 更新指定反馈内容，管理员无权限限制，普通用户只能更新自身记录
 @router.post("/feedback/{id}", response_model=FeedbackModel)
 async def update_feedback_by_id(
     id: str, form_data: FeedbackForm, user=Depends(get_verified_user)
@@ -163,6 +175,7 @@ async def update_feedback_by_id(
     return feedback
 
 
+# 删除指定反馈，管理员可删除任意记录，普通用户仅能删除自己的
 @router.delete("/feedback/{id}")
 async def delete_feedback_by_id(id: str, user=Depends(get_verified_user)):
     if user.role == "admin":

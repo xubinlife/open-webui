@@ -42,6 +42,7 @@ router = APIRouter()
 
 @router.get("/", response_model=list[KnowledgeUserResponse])
 async def get_knowledge(user=Depends(get_verified_user)):
+    # 获取用户拥有读取权限的知识库列表，管理员可按配置跳过访问控制
     # Return knowledge bases with read access
     knowledge_bases = []
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
@@ -60,6 +61,7 @@ async def get_knowledge(user=Depends(get_verified_user)):
 
 @router.get("/list", response_model=list[KnowledgeUserResponse])
 async def get_knowledge_list(user=Depends(get_verified_user)):
+    # 获取用户拥有写入权限的知识库列表，便于上传或管理文件
     # Return knowledge bases with write access
     knowledge_bases = []
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
@@ -85,6 +87,7 @@ async def get_knowledge_list(user=Depends(get_verified_user)):
 async def create_new_knowledge(
     request: Request, form_data: KnowledgeForm, user=Depends(get_verified_user)
 ):
+    # 创建新的知识库资源，校验权限并处理公开分享的限制
     if user.role != "admin" and not has_permission(
         user.id, "workspace.knowledge", request.app.state.config.USER_PERMISSIONS
     ):
@@ -123,6 +126,7 @@ async def create_new_knowledge(
 
 @router.post("/reindex", response_model=bool)
 async def reindex_knowledge_files(request: Request, user=Depends(get_verified_user)):
+    # 管理员重建所有知识库的向量索引，对每个文件重新执行处理
     if user.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -185,11 +189,13 @@ async def reindex_knowledge_files(request: Request, user=Depends(get_verified_us
 
 
 class KnowledgeFilesResponse(KnowledgeResponse):
+    # 知识库响应中附带文件元数据列表
     files: list[FileMetadataResponse]
 
 
 @router.get("/{id}", response_model=Optional[KnowledgeFilesResponse])
 async def get_knowledge_by_id(id: str, user=Depends(get_verified_user)):
+    # 按 ID 查询单个知识库，校验是否具备读取权限
     knowledge = Knowledges.get_knowledge_by_id(id=id)
 
     if knowledge:
@@ -222,6 +228,7 @@ async def update_knowledge_by_id(
     form_data: KnowledgeForm,
     user=Depends(get_verified_user),
 ):
+    # 更新指定知识库的元信息与访问控制，校验写权限或管理员身份
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -280,6 +287,7 @@ def add_file_to_knowledge_by_id(
     form_data: KnowledgeFileIdForm,
     user=Depends(get_verified_user),
 ):
+    # 向知识库添加已有文件并同步至向量数据库
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -347,6 +355,7 @@ def update_file_from_knowledge_by_id(
     form_data: KnowledgeFileIdForm,
     user=Depends(get_verified_user),
 ):
+    # 重新处理知识库内指定文件，清理旧向量后重新插入
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -414,6 +423,7 @@ def remove_file_from_knowledge_by_id(
     delete_file: bool = Query(True),
     user=Depends(get_verified_user),
 ):
+    # 从知识库移除文件，可选择同时删除底层文件并清除向量记录
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -489,6 +499,7 @@ def remove_file_from_knowledge_by_id(
 
 @router.delete("/{id}/delete", response_model=bool)
 async def delete_knowledge_by_id(id: str, user=Depends(get_verified_user)):
+    # 删除知识库并清理引用与向量集合，需作者或管理员
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -552,6 +563,7 @@ async def delete_knowledge_by_id(id: str, user=Depends(get_verified_user)):
 
 @router.post("/{id}/reset", response_model=Optional[KnowledgeResponse])
 async def reset_knowledge_by_id(id: str, user=Depends(get_verified_user)):
+    # 清空指定知识库的文件及向量集合，但保留知识库记录
     knowledge = Knowledges.get_knowledge_by_id(id=id)
     if not knowledge:
         raise HTTPException(
@@ -591,6 +603,7 @@ async def add_files_to_knowledge_batch(
     form_data: list[KnowledgeFileIdForm],
     user=Depends(get_verified_user),
 ):
+    # 批量将已有文件加入知识库，处理完成后记录成功与警告信息
     """
     Add multiple files to a knowledge base
     """

@@ -19,6 +19,7 @@ router = APIRouter()
 ############################
 
 
+# 获取当前用户可见的提示集合，管理员可绕过权限过滤
 @router.get("/", response_model=list[PromptModel])
 async def get_prompts(user=Depends(get_verified_user)):
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
@@ -29,6 +30,7 @@ async def get_prompts(user=Depends(get_verified_user)):
     return prompts
 
 
+# 获取具备写权限的提示列表，用于用户侧编辑或选择
 @router.get("/list", response_model=list[PromptUserResponse])
 async def get_prompt_list(user=Depends(get_verified_user)):
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
@@ -44,6 +46,7 @@ async def get_prompt_list(user=Depends(get_verified_user)):
 ############################
 
 
+# 创建新的提示记录，并校验用户是否具备导入或管理权限
 @router.post("/create", response_model=Optional[PromptModel])
 async def create_new_prompt(
     request: Request, form_data: PromptForm, user=Depends(get_verified_user)
@@ -84,6 +87,7 @@ async def create_new_prompt(
 ############################
 
 
+# 根据命令标识获取提示详情，保证调用者拥有读取权限
 @router.get("/command/{command}", response_model=Optional[PromptModel])
 async def get_prompt_by_command(command: str, user=Depends(get_verified_user)):
     prompt = Prompts.get_prompt_by_command(f"/{command}")
@@ -107,6 +111,7 @@ async def get_prompt_by_command(command: str, user=Depends(get_verified_user)):
 ############################
 
 
+# 更新指定命令的提示内容，需验证写入权限
 @router.post("/command/{command}/update", response_model=Optional[PromptModel])
 async def update_prompt_by_command(
     command: str,
@@ -146,6 +151,7 @@ async def update_prompt_by_command(
 ############################
 
 
+# 删除指定命令对应的提示，权限不足时返回未授权
 @router.delete("/command/{command}/delete", response_model=bool)
 async def delete_prompt_by_command(command: str, user=Depends(get_verified_user)):
     prompt = Prompts.get_prompt_by_command(f"/{command}")

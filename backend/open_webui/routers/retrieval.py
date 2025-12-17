@@ -120,6 +120,8 @@ log.setLevel(SRC_LOG_LEVELS["RAG"])
 ##########################################
 
 
+# 获取内部嵌入模型实例，若选择本地模型则尝试加载 SentenceTransformer
+# engine 为空表示使用本地模型；auto_update 控制是否自动下载缺失模型
 def get_ef(
     engine: str,
     embedding_model: str,
@@ -143,6 +145,8 @@ def get_ef(
     return ef
 
 
+# 获取重排模型实例，支持本地 CrossEncoder、ColBERT 以及外部 HTTP 重排器
+# 根据 engine 与模型名自动选择加载方式，并在必要时调整 pad_token_id
 def get_rf(
     engine: str = "",
     reranking_model: Optional[str] = None,
@@ -225,19 +229,23 @@ def get_rf(
 router = APIRouter()
 
 
+# 通用集合名称表单，用于可选指定目标向量集合
 class CollectionNameForm(BaseModel):
     collection_name: Optional[str] = None
 
 
+# 处理外部链接的表单，继承集合名称并携带 URL
 class ProcessUrlForm(CollectionNameForm):
     url: str
 
 
+# 多查询搜索表单，支持批量关键词提交
 class SearchForm(BaseModel):
     queries: List[str]
 
 
 @router.get("/")
+# 获取检索与嵌入基础配置，便于前端展示默认参数
 async def get_status(request: Request):
     return {
         "status": True,
@@ -253,6 +261,7 @@ async def get_status(request: Request):
 
 
 @router.get("/embedding")
+# 管理员获取嵌入引擎与外部接口配置
 async def get_embedding_config(request: Request, user=Depends(get_admin_user)):
     return {
         "status": True,
@@ -276,22 +285,26 @@ async def get_embedding_config(request: Request, user=Depends(get_admin_user)):
     }
 
 
+# OpenAI 兼容接口的连接配置
 class OpenAIConfigForm(BaseModel):
     url: str
     key: str
 
 
+# Ollama 服务的连接配置
 class OllamaConfigForm(BaseModel):
     url: str
     key: str
 
 
+# Azure OpenAI 的连接与版本配置
 class AzureOpenAIConfigForm(BaseModel):
     url: str
     key: str
     version: str
 
 
+# 更新嵌入模型时使用的完整配置表单
 class EmbeddingModelUpdateForm(BaseModel):
     openai_config: Optional[OpenAIConfigForm] = None
     ollama_config: Optional[OllamaConfigForm] = None
@@ -302,6 +315,7 @@ class EmbeddingModelUpdateForm(BaseModel):
     ENABLE_ASYNC_EMBEDDING: Optional[bool] = True
 
 
+# 清理当前内置嵌入模型，释放内存与显存缓存
 def unload_embedding_model(request: Request):
     if request.app.state.config.RAG_EMBEDDING_ENGINE == "":
         # unloads current internal embedding model and clears VRAM cache
@@ -318,6 +332,7 @@ def unload_embedding_model(request: Request):
 
 
 @router.post("/embedding/update")
+# 更新嵌入模型配置并重新实例化对应的嵌入函数，需管理员权限
 async def update_embedding_config(
     request: Request, form_data: EmbeddingModelUpdateForm, user=Depends(get_admin_user)
 ):
@@ -432,6 +447,7 @@ async def update_embedding_config(
 
 
 @router.get("/config")
+# 管理员获取 RAG 相关详细配置，包含检索、切分与 Web 搜索参数
 async def get_rag_config(request: Request, user=Depends(get_admin_user)):
     return {
         "status": True,
@@ -553,6 +569,7 @@ async def get_rag_config(request: Request, user=Depends(get_admin_user)):
     }
 
 
+# Web 搜索相关的可选配置集合，涵盖各搜索引擎密钥与抓取参数
 class WebConfig(BaseModel):
     ENABLE_WEB_SEARCH: Optional[bool] = None
     WEB_SEARCH_ENGINE: Optional[str] = None
@@ -609,6 +626,7 @@ class WebConfig(BaseModel):
     YOUTUBE_LOADER_TRANSLATION: Optional[str] = None
 
 
+# RAG 全局配置表单，覆盖检索、切分、上传限制与 Web 搜索等开关
 class ConfigForm(BaseModel):
     # RAG settings
     RAG_TEMPLATE: Optional[str] = None
@@ -685,6 +703,7 @@ class ConfigForm(BaseModel):
 
 
 @router.post("/config/update")
+# 更新 RAG 相关配置项，覆盖检索、切分、集成和 Web 搜索参数，需管理员权限
 async def update_rag_config(
     request: Request, form_data: ConfigForm, user=Depends(get_admin_user)
 ):
@@ -1230,6 +1249,7 @@ async def update_rag_config(
 ####################################
 
 
+# 将文档列表切分并写入向量数据库，必要时校验重复内容哈希
 def save_docs_to_vector_db(
     request: Request,
     docs,
@@ -1436,6 +1456,7 @@ def save_docs_to_vector_db(
         raise e
 
 
+# 文件处理表单，包含文件 ID、可选文本内容与目标集合
 class ProcessFileForm(BaseModel):
     file_id: str
     content: Optional[str] = None
@@ -1443,6 +1464,7 @@ class ProcessFileForm(BaseModel):
 
 
 @router.post("/process/file")
+# 处理单个文件并入库向量数据库，根据表单内容支持重新写入或增量追加
 def process_file(
     request: Request,
     form_data: ProcessFileForm,
@@ -1671,6 +1693,7 @@ def process_file(
         )
 
 
+# 纯文本处理表单，将文本按指定名称写入向量集合
 class ProcessTextForm(BaseModel):
     name: str
     content: str
@@ -1678,6 +1701,7 @@ class ProcessTextForm(BaseModel):
 
 
 @router.post("/process/text")
+# 处理纯文本输入，生成集合名并触发异步向量化入库
 async def process_text(
     request: Request,
     form_data: ProcessTextForm,
@@ -1714,6 +1738,7 @@ async def process_text(
 
 @router.post("/process/youtube")
 @router.post("/process/web")
+# 处理网页或 YouTube 链接，抓取内容后可选入库
 async def process_web(
     request: Request, form_data: ProcessUrlForm, user=Depends(get_verified_user)
 ):
@@ -1761,6 +1786,7 @@ async def process_web(
         )
 
 
+# 根据配置的搜索引擎发起 Web 检索，返回 SearchResult 列表
 def search_web(
     request: Request, engine: str, query: str, user=None
 ) -> list[SearchResult]:
@@ -2054,6 +2080,7 @@ def search_web(
 
 
 @router.post("/process/web/search")
+# 批量执行 Web 搜索查询，按需求加载网页并可选写入向量库
 async def process_web_search(
     request: Request, form_data: SearchForm, user=Depends(get_verified_user)
 ):
@@ -2188,6 +2215,7 @@ async def process_web_search(
         )
 
 
+# 单集合查询表单，包含查询语句及可选混合搜索参数
 class QueryDocForm(BaseModel):
     collection_name: str
     query: str
@@ -2198,6 +2226,7 @@ class QueryDocForm(BaseModel):
 
 
 @router.post("/query/doc")
+# 查询单一集合的相似文档，支持混合搜索与重排配置
 async def query_doc_handler(
     request: Request,
     form_data: QueryDocForm,
@@ -2260,6 +2289,7 @@ async def query_doc_handler(
         )
 
 
+# 多集合查询表单，支持混合检索与增强文本开关
 class QueryCollectionsForm(BaseModel):
     collection_names: list[str]
     query: str
@@ -2272,6 +2302,7 @@ class QueryCollectionsForm(BaseModel):
 
 
 @router.post("/query/collection")
+# 查询多个集合的相似结果，按配置决定是否启用混合检索与丰富文本
 async def query_collection_handler(
     request: Request,
     form_data: QueryCollectionsForm,
@@ -2340,12 +2371,14 @@ async def query_collection_handler(
 ####################################
 
 
+# 删除指定集合中文件相关条目的表单
 class DeleteForm(BaseModel):
     collection_name: str
     file_id: str
 
 
 @router.post("/delete")
+# 管理员删除指定集合中匹配文件哈希的向量条目
 def delete_entries_from_collection(form_data: DeleteForm, user=Depends(get_admin_user)):
     try:
         if VECTOR_DB_CLIENT.has_collection(collection_name=form_data.collection_name):
@@ -2365,12 +2398,14 @@ def delete_entries_from_collection(form_data: DeleteForm, user=Depends(get_admin
 
 
 @router.post("/reset/db")
+# 管理员重置向量数据库并清空知识库表
 def reset_vector_db(user=Depends(get_admin_user)):
     VECTOR_DB_CLIENT.reset()
     Knowledges.delete_all_knowledge()
 
 
 @router.post("/reset/uploads")
+# 管理员清理上传目录下的所有文件与子目录
 def reset_upload_dir(user=Depends(get_admin_user)) -> bool:
     folder = f"{UPLOAD_DIR}"
     try:
@@ -2404,17 +2439,20 @@ if ENV == "dev":
         }
 
 
+# 批量文件处理表单，指定文件列表与目标集合
 class BatchProcessFilesForm(BaseModel):
     files: List[FileModel]
     collection_name: str
 
 
+# 批处理单个文件的执行结果结构
 class BatchProcessFilesResult(BaseModel):
     file_id: str
     status: str
     error: Optional[str] = None
 
 
+# 批处理整体响应，包含成功与失败的文件记录
 class BatchProcessFilesResponse(BaseModel):
     results: List[BatchProcessFilesResult]
     errors: List[BatchProcessFilesResult]
@@ -2427,7 +2465,7 @@ async def process_files_batch(
     user=Depends(get_verified_user),
 ) -> BatchProcessFilesResponse:
     """
-    Process a batch of files and save them to the vector database.
+    批量处理文件并保存到向量数据库。
     """
 
     collection_name = form_data.collection_name

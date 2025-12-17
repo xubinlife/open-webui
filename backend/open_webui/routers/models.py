@@ -37,6 +37,7 @@ router = APIRouter()
 
 
 def is_valid_model_id(model_id: str) -> bool:
+    # 校验模型 ID 是否非空且长度不超过 256，避免创建异常或过长的标识
     return model_id and len(model_id) <= 256
 
 
@@ -60,6 +61,7 @@ async def get_models(
     page: Optional[int] = 1,
     user=Depends(get_verified_user),
 ):
+    # 分页查询模型列表，可按关键词、视图、标签及排序过滤，并对非管理员应用群组与用户过滤
 
     limit = PAGE_ITEM_COUNT
 
@@ -95,6 +97,7 @@ async def get_models(
 
 @router.get("/base", response_model=list[ModelResponse])
 async def get_base_models(user=Depends(get_admin_user)):
+    # 仅管理员可获取基础模型列表，用于模型继承或展示
     return Models.get_base_models()
 
 
@@ -105,6 +108,7 @@ async def get_base_models(user=Depends(get_admin_user)):
 
 @router.get("/tags", response_model=list[str])
 async def get_model_tags(user=Depends(get_verified_user)):
+    # 收集当前可见模型的标签集合，管理员可跳过访问控制
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
         models = Models.get_models()
     else:
@@ -133,6 +137,7 @@ async def create_new_model(
     form_data: ModelForm,
     user=Depends(get_verified_user),
 ):
+    # 创建自定义模型，需具备模型管理权限并校验 ID 唯一与长度
     if user.role != "admin" and not has_permission(
         user.id, "workspace.models", request.app.state.config.USER_PERMISSIONS
     ):
@@ -172,6 +177,7 @@ async def create_new_model(
 
 @router.get("/export", response_model=list[ModelModel])
 async def export_models(request: Request, user=Depends(get_verified_user)):
+    # 导出当前用户可见的模型列表，管理员需具备导出权限且可跳过访问控制
     if user.role != "admin" and not has_permission(
         user.id, "workspace.models_export", request.app.state.config.USER_PERMISSIONS
     ):
@@ -201,6 +207,7 @@ async def import_models(
     user=Depends(get_verified_user),
     form_data: ModelsImportForm = (...),
 ):
+    # 导入模型配置，支持更新已存在模型或插入新模型，需具备导入权限
     if user.role != "admin" and not has_permission(
         user.id, "workspace.models_import", request.app.state.config.USER_PERMISSIONS
     ):
@@ -253,6 +260,7 @@ class SyncModelsForm(BaseModel):
 async def sync_models(
     request: Request, form_data: SyncModelsForm, user=Depends(get_admin_user)
 ):
+    # 同步一组模型配置，仅管理员可调用
     return Models.sync_models(user.id, form_data.models)
 
 
@@ -268,6 +276,7 @@ class ModelIdForm(BaseModel):
 # Note: We're not using the typical url path param here, but instead using a query parameter to allow '/' in the id
 @router.get("/model", response_model=Optional[ModelResponse])
 async def get_model_by_id(id: str, user=Depends(get_verified_user)):
+    # 按 ID 查询模型详情，支持带斜杠的 ID，通过访问控制校验权限
     model = Models.get_model_by_id(id)
     if model:
         if (
@@ -290,6 +299,7 @@ async def get_model_by_id(id: str, user=Depends(get_verified_user)):
 
 @router.get("/model/profile/image")
 async def get_model_profile_image(id: str, user=Depends(get_verified_user)):
+    # 返回模型头像，支持重定向 HTTP 链接、内联 data URL 或回退到默认图标
     model = Models.get_model_by_id(id)
     if model:
         if model.meta.profile_image_url:
@@ -324,6 +334,7 @@ async def get_model_profile_image(id: str, user=Depends(get_verified_user)):
 
 @router.post("/model/toggle", response_model=Optional[ModelResponse])
 async def toggle_model_by_id(id: str, user=Depends(get_verified_user)):
+    # 切换模型启用状态，需管理员、作者或写权限用户
     model = Models.get_model_by_id(id)
     if model:
         if (
@@ -362,6 +373,7 @@ async def update_model_by_id(
     form_data: ModelForm,
     user=Depends(get_verified_user),
 ):
+    # 更新模型定义，校验写权限或管理员身份
     model = Models.get_model_by_id(form_data.id)
     if not model:
         raise HTTPException(
@@ -390,6 +402,7 @@ async def update_model_by_id(
 
 @router.post("/model/delete", response_model=bool)
 async def delete_model_by_id(form_data: ModelIdForm, user=Depends(get_verified_user)):
+    # 删除指定模型，需管理员或具备写权限的作者
     model = Models.get_model_by_id(form_data.id)
     if not model:
         raise HTTPException(
@@ -413,5 +426,6 @@ async def delete_model_by_id(form_data: ModelIdForm, user=Depends(get_verified_u
 
 @router.delete("/delete/all", response_model=bool)
 async def delete_all_models(user=Depends(get_admin_user)):
+    # 清空所有模型，仅管理员可执行
     result = Models.delete_all_models()
     return result

@@ -30,6 +30,7 @@ router = APIRouter()
 ############################
 
 
+# 获取群组列表，普通用户仅能查看自身所在群组，可过滤共享状态
 @router.get("/", response_model=list[GroupResponse])
 async def get_groups(share: Optional[bool] = None, user=Depends(get_verified_user)):
 
@@ -50,6 +51,7 @@ async def get_groups(share: Optional[bool] = None, user=Depends(get_verified_use
 ############################
 
 
+# 管理员创建新的群组并返回成员数量
 @router.post("/create", response_model=Optional[GroupResponse])
 async def create_new_group(form_data: GroupForm, user=Depends(get_admin_user)):
     try:
@@ -77,6 +79,7 @@ async def create_new_group(form_data: GroupForm, user=Depends(get_admin_user)):
 ############################
 
 
+# 管理员按 id 查看群组详情，附带成员统计
 @router.get("/id/{id}", response_model=Optional[GroupResponse])
 async def get_group_by_id(id: str, user=Depends(get_admin_user)):
     group = Groups.get_group_by_id(id)
@@ -97,11 +100,13 @@ async def get_group_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 群组导出响应，包含成员用户 ID 列表
 class GroupExportResponse(GroupResponse):
     user_ids: list[str] = []
     pass
 
 
+# 导出指定群组的详情及成员 ID，管理员接口
 @router.get("/id/{id}/export", response_model=Optional[GroupExportResponse])
 async def export_group_by_id(id: str, user=Depends(get_admin_user)):
     group = Groups.get_group_by_id(id)
@@ -123,6 +128,7 @@ async def export_group_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 管理员查询指定群组下的用户列表
 @router.post("/id/{id}/users", response_model=list[UserInfoResponse])
 async def get_users_in_group(id: str, user=Depends(get_admin_user)):
     try:
@@ -141,6 +147,7 @@ async def get_users_in_group(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 管理员修改群组信息并返回最新成员数量
 @router.post("/id/{id}/update", response_model=Optional[GroupResponse])
 async def update_group_by_id(
     id: str, form_data: GroupUpdateForm, user=Depends(get_admin_user)
@@ -170,6 +177,7 @@ async def update_group_by_id(
 ############################
 
 
+# 管理员批量添加用户到群组，过滤无效用户 ID
 @router.post("/id/{id}/users/add", response_model=Optional[GroupResponse])
 async def add_user_to_group(
     id: str, form_data: UserIdsForm, user=Depends(get_admin_user)
@@ -197,6 +205,7 @@ async def add_user_to_group(
         )
 
 
+# 管理员从群组中批量移除用户
 @router.post("/id/{id}/users/remove", response_model=Optional[GroupResponse])
 async def remove_users_from_group(
     id: str, form_data: UserIdsForm, user=Depends(get_admin_user)
@@ -226,6 +235,7 @@ async def remove_users_from_group(
 ############################
 
 
+# 删除群组及关联关系，管理员权限
 @router.delete("/id/{id}/delete", response_model=bool)
 async def delete_group_by_id(id: str, user=Depends(get_admin_user)):
     try:

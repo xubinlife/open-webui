@@ -38,6 +38,7 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 ##################################
 
 
+# 获取指定模型可应用的过滤器列表，并按优先级排序
 def get_sorted_filters(model_id, models):
     filters = [
         model
@@ -57,6 +58,7 @@ def get_sorted_filters(model_id, models):
     return sorted_filters
 
 
+# 按顺序执行入口过滤器，将用户和请求上下文传递给每个过滤模型
 async def process_pipeline_inlet_filter(request, payload, user, models):
     user = {"id": user.id, "email": user.email, "name": user.name, "role": user.role}
     model_id = payload["model"]
@@ -110,6 +112,7 @@ async def process_pipeline_inlet_filter(request, payload, user, models):
     return payload
 
 
+# 按顺序执行出口过滤器，允许模型对生成结果进行后处理
 async def process_pipeline_outlet_filter(request, payload, user, models):
     user = {"id": user.id, "email": user.email, "name": user.name, "role": user.role}
     model_id = payload["model"]
@@ -175,6 +178,7 @@ async def process_pipeline_outlet_filter(request, payload, user, models):
 router = APIRouter()
 
 
+# 获取各后端暴露的管道服务列表，列出可用的 base url 索引
 @router.get("/list")
 async def get_pipelines_list(request: Request, user=Depends(get_admin_user)):
     responses = await get_all_models_responses(request, user)
@@ -197,6 +201,7 @@ async def get_pipelines_list(request: Request, user=Depends(get_admin_user)):
     }
 
 
+# 上传 Python 管道脚本到指定的模型后端，仅管理员允许
 @router.post("/upload")
 async def upload_pipeline(
     request: Request,
@@ -264,11 +269,13 @@ async def upload_pipeline(
             os.remove(file_path)
 
 
+# 管道新增表单，携带目标 URL 与索引
 class AddPipelineForm(BaseModel):
     url: str
     urlIdx: int
 
 
+# 将已有管道 URL 注册到后端
 @router.post("/add")
 async def add_pipeline(
     request: Request, form_data: AddPipelineForm, user=Depends(get_admin_user)
@@ -309,11 +316,13 @@ async def add_pipeline(
         )
 
 
+# 管道删除表单，传递目标 URL 与索引
 class DeletePipelineForm(BaseModel):
     id: str
     urlIdx: int
 
 
+# 从后端注销指定的管道 URL
 @router.delete("/delete")
 async def delete_pipeline(
     request: Request, form_data: DeletePipelineForm, user=Depends(get_admin_user)
@@ -354,6 +363,7 @@ async def delete_pipeline(
         )
 
 
+# 获取后端返回的管道列表及元信息
 @router.get("/")
 async def get_pipelines(
     request: Request, urlIdx: Optional[int] = None, user=Depends(get_admin_user)
@@ -388,6 +398,7 @@ async def get_pipelines(
         )
 
 
+# 查询指定管道的阀门配置，便于前端渲染配置项
 @router.get("/{pipeline_id}/valves")
 async def get_pipeline_valves(
     request: Request,
@@ -427,6 +438,7 @@ async def get_pipeline_valves(
         )
 
 
+# 获取管道阀门的 JSON Schema，用于构建动态表单
 @router.get("/{pipeline_id}/valves/spec")
 async def get_pipeline_valves_spec(
     request: Request,
@@ -467,6 +479,7 @@ async def get_pipeline_valves_spec(
         )
 
 
+# 提交阀门配置更新到后端
 @router.post("/{pipeline_id}/valves/update")
 async def update_pipeline_valves(
     request: Request,

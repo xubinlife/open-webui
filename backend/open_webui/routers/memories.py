@@ -16,6 +16,7 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 router = APIRouter()
 
 
+# 测试接口：返回示例文本的嵌入结果
 @router.get("/ef")
 async def get_embeddings(request: Request):
     return {"result": await request.app.state.EMBEDDING_FUNCTION("hello world")}
@@ -26,6 +27,7 @@ async def get_embeddings(request: Request):
 ############################
 
 
+# 获取当前用户的所有记忆片段列表
 @router.get("/", response_model=list[MemoryModel])
 async def get_memories(user=Depends(get_verified_user)):
     return Memories.get_memories_by_user_id(user.id)
@@ -36,14 +38,17 @@ async def get_memories(user=Depends(get_verified_user)):
 ############################
 
 
+# 新增记忆的请求体，仅包含文本内容
 class AddMemoryForm(BaseModel):
     content: str
 
 
+# 更新记忆时可提交的字段
 class MemoryUpdateModel(BaseModel):
     content: Optional[str] = None
 
 
+# 新增一条用户记忆，并写入向量数据库
 @router.post("/add", response_model=Optional[MemoryModel])
 async def add_memory(
     request: Request,
@@ -74,11 +79,13 @@ async def add_memory(
 ############################
 
 
+# 查询记忆使用的表单，包含查询文本与返回数量
 class QueryMemoryForm(BaseModel):
     content: str
     k: Optional[int] = 1
 
 
+# 基于向量相似度查询记忆，返回最相关的结果
 @router.post("/query")
 async def query_memory(
     request: Request, form_data: QueryMemoryForm, user=Depends(get_verified_user)
@@ -101,6 +108,7 @@ async def query_memory(
 ############################
 # ResetMemoryFromVectorDB
 ############################
+# 重建当前用户的记忆向量集合（先清空后重新嵌入）
 @router.post("/reset", response_model=bool)
 async def reset_memory_from_vector_db(
     request: Request, user=Depends(get_verified_user)
@@ -141,6 +149,7 @@ async def reset_memory_from_vector_db(
 ############################
 
 
+# 删除当前用户的所有记忆及对应的向量集合
 @router.delete("/delete/user", response_model=bool)
 async def delete_memory_by_user_id(user=Depends(get_verified_user)):
     result = Memories.delete_memories_by_user_id(user.id)
@@ -160,6 +169,7 @@ async def delete_memory_by_user_id(user=Depends(get_verified_user)):
 ############################
 
 
+# 更新指定记忆内容并同步向量索引
 @router.post("/{memory_id}/update", response_model=Optional[MemoryModel])
 async def update_memory_by_id(
     memory_id: str,
@@ -199,6 +209,7 @@ async def update_memory_by_id(
 ############################
 
 
+# 删除单条记忆并移除对应的向量
 @router.delete("/{memory_id}", response_model=bool)
 async def delete_memory_by_id(memory_id: str, user=Depends(get_verified_user)):
     result = Memories.delete_memory_by_id_and_user_id(memory_id, user.id)

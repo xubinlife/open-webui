@@ -38,11 +38,13 @@ router = APIRouter()
 ############################
 
 
+# 获取当前可用的函数列表（普通已验证用户即可查看）
 @router.get("/", response_model=list[FunctionResponse])
 async def get_functions(user=Depends(get_verified_user)):
     return Functions.get_functions()
 
 
+# 管理员查看包含用户阀值配置在内的函数列表
 @router.get("/list", response_model=list[FunctionUserResponse])
 async def get_function_list(user=Depends(get_admin_user)):
     return Functions.get_function_list()
@@ -53,6 +55,7 @@ async def get_function_list(user=Depends(get_admin_user)):
 ############################
 
 
+# 导出函数定义，可选包含阀值配置，管理员限定
 @router.get("/export", response_model=list[FunctionModel | FunctionWithValvesModel])
 async def get_functions(include_valves: bool = False, user=Depends(get_admin_user)):
     return Functions.get_functions(include_valves=include_valves)
@@ -63,12 +66,14 @@ async def get_functions(include_valves: bool = False, user=Depends(get_admin_use
 ############################
 
 
+# 用于从外部链接加载函数代码的表单
 class LoadUrlForm(BaseModel):
     url: HttpUrl
 
 
+# 将 GitHub 页面地址转换为原始文件下载地址
 def github_url_to_raw_url(url: str) -> str:
-    # Handle 'tree' (folder) URLs (add main.py at the end)
+    # 处理仓库目录链接，自动追加 main.py
     m1 = re.match(r"https://github\.com/([^/]+)/([^/]+)/tree/([^/]+)/(.*)", url)
     if m1:
         org, repo, branch, path = m1.groups()
@@ -90,9 +95,7 @@ def github_url_to_raw_url(url: str) -> str:
 async def load_function_from_url(
     request: Request, form_data: LoadUrlForm, user=Depends(get_admin_user)
 ):
-    # NOTE: This is NOT a SSRF vulnerability:
-    # This endpoint is admin-only (see get_admin_user), meant for *trusted* internal use,
-    # and does NOT accept untrusted user input. Access is enforced by authentication.
+    # 管理员从远端 URL 加载函数源码并返回名称与内容，仅内部可信调用
 
     url = str(form_data.url)
     if not url:
@@ -138,10 +141,12 @@ async def load_function_from_url(
 ############################
 
 
+# 批量同步函数的提交表单，包含阀值信息
 class SyncFunctionsForm(BaseModel):
     functions: list[FunctionWithValvesModel] = []
 
 
+# 管理员批量同步函数定义并校验阀值合法性
 @router.post("/sync", response_model=list[FunctionWithValvesModel])
 async def sync_functions(
     request: Request, form_data: SyncFunctionsForm, user=Depends(get_admin_user)
@@ -180,6 +185,7 @@ async def sync_functions(
 ############################
 
 
+# 管理员创建新的函数定义，校验标识符并缓存模块
 @router.post("/create", response_model=Optional[FunctionResponse])
 async def create_new_function(
     request: Request, form_data: FunctionForm, user=Depends(get_admin_user)
@@ -238,6 +244,7 @@ async def create_new_function(
 ############################
 
 
+# 根据函数 id 查询详细配置，仅管理员可用
 @router.get("/id/{id}", response_model=Optional[FunctionModel])
 async def get_function_by_id(id: str, user=Depends(get_admin_user)):
     function = Functions.get_function_by_id(id)
@@ -256,6 +263,7 @@ async def get_function_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 切换函数启用状态（is_active），管理员接口
 @router.post("/id/{id}/toggle", response_model=Optional[FunctionModel])
 async def toggle_function_by_id(id: str, user=Depends(get_admin_user)):
     function = Functions.get_function_by_id(id)
@@ -283,6 +291,7 @@ async def toggle_function_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 切换函数是否全局可用（is_global），管理员接口
 @router.post("/id/{id}/toggle/global", response_model=Optional[FunctionModel])
 async def toggle_global_by_id(id: str, user=Depends(get_admin_user)):
     function = Functions.get_function_by_id(id)
@@ -310,6 +319,7 @@ async def toggle_global_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 管理员更新已有函数的代码与元数据，重载缓存模块
 @router.post("/id/{id}/update", response_model=Optional[FunctionModel])
 async def update_function_by_id(
     request: Request, id: str, form_data: FunctionForm, user=Depends(get_admin_user)
@@ -352,6 +362,7 @@ async def update_function_by_id(
 ############################
 
 
+# 删除指定函数并清理应用缓存，管理员权限
 @router.delete("/id/{id}/delete", response_model=bool)
 async def delete_function_by_id(
     request: Request, id: str, user=Depends(get_admin_user)
@@ -371,6 +382,7 @@ async def delete_function_by_id(
 ############################
 
 
+# 管理员查看函数的阀值配置
 @router.get("/id/{id}/valves", response_model=Optional[dict])
 async def get_function_valves_by_id(id: str, user=Depends(get_admin_user)):
     function = Functions.get_function_by_id(id)
@@ -395,6 +407,7 @@ async def get_function_valves_by_id(id: str, user=Depends(get_admin_user)):
 ############################
 
 
+# 获取函数阀值的 Pydantic schema 描述，便于前端生成表单
 @router.get("/id/{id}/valves/spec", response_model=Optional[dict])
 async def get_function_valves_spec_by_id(
     request: Request, id: str, user=Depends(get_admin_user)
@@ -421,6 +434,7 @@ async def get_function_valves_spec_by_id(
 ############################
 
 
+# 管理员更新函数阀值并校验数据合法性
 @router.post("/id/{id}/valves/update", response_model=Optional[dict])
 async def update_function_valves_by_id(
     request: Request, id: str, form_data: dict, user=Depends(get_admin_user)
@@ -465,6 +479,7 @@ async def update_function_valves_by_id(
 ############################
 
 
+# 普通用户获取自己对指定函数的个性化阀值
 @router.get("/id/{id}/valves/user", response_model=Optional[dict])
 async def get_function_user_valves_by_id(id: str, user=Depends(get_verified_user)):
     function = Functions.get_function_by_id(id)
@@ -484,6 +499,7 @@ async def get_function_user_valves_by_id(id: str, user=Depends(get_verified_user
         )
 
 
+# 获取用户级阀值表单的 schema，供前端构建
 @router.get("/id/{id}/valves/user/spec", response_model=Optional[dict])
 async def get_function_user_valves_spec_by_id(
     request: Request, id: str, user=Depends(get_verified_user)
@@ -505,6 +521,7 @@ async def get_function_user_valves_spec_by_id(
         )
 
 
+# 普通用户更新自己的阀值配置并持久化
 @router.post("/id/{id}/valves/user/update", response_model=Optional[dict])
 async def update_function_user_valves_by_id(
     request: Request, id: str, form_data: dict, user=Depends(get_verified_user)
