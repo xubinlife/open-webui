@@ -79,6 +79,7 @@ from pydub import AudioSegment
 from pydub.utils import mediainfo
 
 
+# 判断音频文件是否需要转码为 mp3，避免不兼容的编解码格式
 def is_audio_conversion_required(file_path):
     """
     Check if the given audio file needs conversion to mp3.
@@ -109,6 +110,7 @@ def is_audio_conversion_required(file_path):
         return False
 
 
+# 将音频文件转码为 mp3 格式，确保后续处理使用统一编码
 def convert_audio_to_mp3(file_path):
     """Convert audio file to mp3 format."""
     try:
@@ -122,6 +124,7 @@ def convert_audio_to_mp3(file_path):
         return None
 
 
+# 初始化 faster-whisper 模型实例，用于本地推理的语音识别
 def set_faster_whisper_model(model: str, auto_update: bool = False):
     whisper_model = None
     if model:
@@ -153,6 +156,7 @@ def set_faster_whisper_model(model: str, auto_update: bool = False):
 ##########################################
 
 
+# 文本转语音配置表单，映射前端配置字段到后端
 class TTSConfigForm(BaseModel):
     OPENAI_API_BASE_URL: str
     OPENAI_API_KEY: str
@@ -167,6 +171,7 @@ class TTSConfigForm(BaseModel):
     AZURE_SPEECH_OUTPUT_FORMAT: str
 
 
+# 语音转文本配置表单，包含不同厂商与模型的参数
 class STTConfigForm(BaseModel):
     OPENAI_API_BASE_URL: str
     OPENAI_API_KEY: str
@@ -185,12 +190,14 @@ class STTConfigForm(BaseModel):
     MISTRAL_USE_CHAT_COMPLETIONS: bool
 
 
+# 音频配置更新表单，封装 TTS 与 STT 的组合配置
 class AudioConfigUpdateForm(BaseModel):
     tts: TTSConfigForm
     stt: STTConfigForm
 
 
 @router.get("/config")
+# 管理员获取当前音频服务相关的配置，便于前端展示和编辑
 async def get_audio_config(request: Request, user=Depends(get_admin_user)):
     return {
         "tts": {
@@ -227,6 +234,7 @@ async def get_audio_config(request: Request, user=Depends(get_admin_user)):
 
 
 @router.post("/config/update")
+# 管理员更新音频相关配置并重建本地 whisper 模型缓存
 async def update_audio_config(
     request: Request, form_data: AudioConfigUpdateForm, user=Depends(get_admin_user)
 ):
@@ -312,7 +320,9 @@ async def update_audio_config(
     }
 
 
+# 初始化语音合成管线，按需加载模型与说话人嵌入数据
 def load_speech_pipeline(request):
+    # 懒加载 huggingface 的 TTS 与说话人向量数据集，避免重复初始化
     from transformers import pipeline
     from datasets import load_dataset
 
@@ -328,6 +338,7 @@ def load_speech_pipeline(request):
 
 
 @router.post("/speech")
+# 将文本请求转为语音文件，支持多种 TTS 引擎并缓存生成结果
 async def speech(request: Request, user=Depends(get_verified_user)):
     body = await request.body()
     name = hashlib.sha256(
@@ -565,6 +576,7 @@ async def speech(request: Request, user=Depends(get_verified_user)):
 
 
 def transcription_handler(request, file_path, metadata, user=None):
+    # 根据 STT 引擎分派转写逻辑，输出统一的文本结果
     filename = os.path.basename(file_path)
     file_dir = os.path.dirname(file_path)
     id = filename.split(".")[0]
@@ -1025,6 +1037,7 @@ def transcription_handler(request, file_path, metadata, user=None):
             )
 
 
+# 对已保存的音频文件进行转写调度，负责转码、切片与并发提交
 def transcribe(
     request: Request, file_path: str, metadata: Optional[dict] = None, user=None
 ):
@@ -1082,6 +1095,7 @@ def transcribe(
     }
 
 
+# 若文件超过限制则压缩音频，降低采样率后重新导出
 def compress_audio(file_path):
     if os.path.getsize(file_path) > MAX_FILE_SIZE:
         id = os.path.splitext(os.path.basename(file_path))[
@@ -1101,6 +1115,7 @@ def compress_audio(file_path):
         return file_path
 
 
+# 将长音频切分成不超过指定大小的片段，便于逐块转写
 def split_audio(file_path, max_bytes, format="mp3", bitrate="32k"):
     """
     Splits audio into chunks not exceeding max_bytes.
@@ -1145,6 +1160,7 @@ def split_audio(file_path, max_bytes, format="mp3", bitrate="32k"):
 
 
 @router.post("/transcriptions")
+# 接收上传文件并触发转写流程的旧版接口，返回文件名与文本
 def transcription(
     request: Request,
     file: UploadFile = File(...),
@@ -1215,6 +1231,7 @@ def transcription(
         )
 
 
+# 获取当前 TTS 引擎支持的模型列表，优先请求自定义端点
 def get_available_models(request: Request) -> list[dict]:
     available_models = []
     if request.app.state.config.TTS_ENGINE == "openai":
@@ -1256,12 +1273,14 @@ def get_available_models(request: Request) -> list[dict]:
 
 
 @router.get("/models")
+# 返回 TTS 模型列表给前端配置界面
 async def get_models(request: Request, user=Depends(get_verified_user)):
     return {"models": get_available_models(request)}
 
 
 def get_available_voices(request) -> dict:
     """Returns {voice_id: voice_name} dict"""
+    # 根据不同 TTS 平台返回可选音色映射
     available_voices = {}
     if request.app.state.config.TTS_ENGINE == "openai":
         # Use custom endpoint if not using the official OpenAI API URL
@@ -1329,6 +1348,7 @@ def get_available_voices(request) -> dict:
 
 
 @lru_cache
+# 通过 ElevenLabs API 获取音色列表，并通过缓存减少重复请求
 def get_elevenlabs_voices(api_key: str) -> dict:
     """
     Note, set the following in your .env file to use Elevenlabs:
@@ -1362,6 +1382,7 @@ def get_elevenlabs_voices(api_key: str) -> dict:
 
 
 @router.get("/voices")
+# 以统一结构返回可用音色列表
 async def get_voices(request: Request, user=Depends(get_verified_user)):
     return {
         "voices": [
