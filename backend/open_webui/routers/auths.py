@@ -92,11 +92,13 @@ signin_rate_limiter = RateLimiter(
 ############################
 
 
+# 会话用户基础信息响应，组合 token 与头像字段
 class SessionUserResponse(Token, UserProfileImageResponse):
     expires_at: Optional[int] = None
     permissions: Optional[dict] = None
 
 
+# 完整的会话用户信息响应，附加状态与基础资料
 class SessionUserInfoResponse(SessionUserResponse, UserStatus):
     bio: Optional[str] = None
     gender: Optional[str] = None
@@ -104,6 +106,7 @@ class SessionUserInfoResponse(SessionUserResponse, UserStatus):
 
 
 @router.get("/", response_model=SessionUserInfoResponse)
+# 获取当前登录用户的会话信息并刷新 token cookie
 async def get_session_user(
     request: Request, response: Response, user=Depends(get_current_user)
 ):
@@ -167,6 +170,7 @@ async def get_session_user(
 
 
 @router.post("/update/profile", response_model=UserProfileImageResponse)
+# 更新当前用户的基础资料和头像信息
 async def update_profile(
     form_data: UpdateProfileForm, session_user=Depends(get_verified_user)
 ):
@@ -189,6 +193,7 @@ async def update_profile(
 
 
 @router.post("/update/password", response_model=bool)
+# 允许用户在密码认证模式下更新密码
 async def update_password(
     form_data: UpdatePasswordForm, session_user=Depends(get_current_user)
 ):
@@ -216,6 +221,7 @@ async def update_password(
 # LDAP Authentication
 ############################
 @router.post("/ldap", response_model=SessionUserResponse)
+# 通过 LDAP 目录服务进行登录认证，并同步创建/更新本地用户
 async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
     # Security checks FIRST - before loading any config
     if not request.app.state.config.ENABLE_LDAP:
@@ -505,6 +511,7 @@ async def ldap_auth(request: Request, response: Response, form_data: LdapForm):
 
 
 @router.post("/signin", response_model=SessionUserResponse)
+# 处理用户登录流程，支持可信头、禁用 auth 与常规密码校验
 async def signin(request: Request, response: Response, form_data: SigninForm):
     if not ENABLE_PASSWORD_AUTH:
         raise HTTPException(
@@ -637,6 +644,7 @@ async def signin(request: Request, response: Response, form_data: SigninForm):
 
 
 @router.post("/signup", response_model=SessionUserResponse)
+# 注册新用户，首个用户可自动成为管理员
 async def signup(request: Request, response: Response, form_data: SignupForm):
     has_users = Users.has_users()
 
@@ -751,6 +759,7 @@ async def signup(request: Request, response: Response, form_data: SignupForm):
 
 
 @router.get("/signout")
+# 处理用户登出，清理本地 cookie 并尝试触发 OpenID 端会话退出
 async def signout(request: Request, response: Response):
 
     # get auth token from headers or cookies
@@ -835,6 +844,7 @@ async def signout(request: Request, response: Response):
 
 
 @router.post("/add", response_model=SigninResponse)
+# 管理员创建新用户账号，生成初始 token
 async def add_user(
     request: Request, form_data: AddUserForm, user=Depends(get_admin_user)
 ):
@@ -892,6 +902,7 @@ async def add_user(
 
 
 @router.get("/admin/details")
+# 返回管理员的联系方式信息（若配置允许）
 async def get_admin_details(request: Request, user=Depends(get_current_user)):
     if request.app.state.config.SHOW_ADMIN_DETAILS:
         admin_email = request.app.state.config.ADMIN_EMAIL
@@ -923,6 +934,7 @@ async def get_admin_details(request: Request, user=Depends(get_current_user)):
 
 
 @router.get("/admin/config")
+# 管理端获取全局配置，便于在控制台渲染
 async def get_admin_config(request: Request, user=Depends(get_admin_user)):
     return {
         "SHOW_ADMIN_DETAILS": request.app.state.config.SHOW_ADMIN_DETAILS,
@@ -946,6 +958,7 @@ async def get_admin_config(request: Request, user=Depends(get_admin_user)):
     }
 
 
+# 管理端更新配置的请求体，涵盖注册、权限与界面选项
 class AdminConfig(BaseModel):
     SHOW_ADMIN_DETAILS: bool
     WEBUI_URL: str
@@ -968,6 +981,7 @@ class AdminConfig(BaseModel):
 
 
 @router.post("/admin/config")
+# 更新全局管理配置，包括注册、API Key 与权限策略
 async def update_admin_config(
     request: Request, form_data: AdminConfig, user=Depends(get_admin_user)
 ):
@@ -1036,6 +1050,7 @@ async def update_admin_config(
     }
 
 
+# LDAP 服务器连接与查询配置
 class LdapServerConfig(BaseModel):
     label: str
     host: str
@@ -1053,6 +1068,7 @@ class LdapServerConfig(BaseModel):
 
 
 @router.get("/admin/config/ldap/server", response_model=LdapServerConfig)
+# 获取当前 LDAP 服务器配置以便在控制台展示
 async def get_ldap_server(request: Request, user=Depends(get_admin_user)):
     return {
         "label": request.app.state.config.LDAP_SERVER_LABEL,
@@ -1072,6 +1088,7 @@ async def get_ldap_server(request: Request, user=Depends(get_admin_user)):
 
 
 @router.post("/admin/config/ldap/server")
+# 更新 LDAP 服务器连接信息并进行必要的字段校验
 async def update_ldap_server(
     request: Request, form_data: LdapServerConfig, user=Depends(get_admin_user)
 ):
@@ -1123,15 +1140,18 @@ async def update_ldap_server(
 
 
 @router.get("/admin/config/ldap")
+# 获取 LDAP 开关配置
 async def get_ldap_config(request: Request, user=Depends(get_admin_user)):
     return {"ENABLE_LDAP": request.app.state.config.ENABLE_LDAP}
 
 
+# LDAP 全局启用配置表单
 class LdapConfigForm(BaseModel):
     enable_ldap: Optional[bool] = None
 
 
 @router.post("/admin/config/ldap")
+# 更新 LDAP 启用状态
 async def update_ldap_config(
     request: Request, form_data: LdapConfigForm, user=Depends(get_admin_user)
 ):
@@ -1146,6 +1166,7 @@ async def update_ldap_config(
 
 # create api key
 @router.post("/api_key", response_model=ApiKey)
+# 为当前用户生成 API Key，需要权限校验
 async def generate_api_key(request: Request, user=Depends(get_current_user)):
     if not request.app.state.config.ENABLE_API_KEYS or not has_permission(
         user.id, "features.api_keys", request.app.state.config.USER_PERMISSIONS
@@ -1168,12 +1189,14 @@ async def generate_api_key(request: Request, user=Depends(get_current_user)):
 
 # delete api key
 @router.delete("/api_key", response_model=bool)
+# 删除当前用户的 API Key
 async def delete_api_key(user=Depends(get_current_user)):
     return Users.delete_user_api_key_by_id(user.id)
 
 
 # get api key
 @router.get("/api_key", response_model=ApiKey)
+# 获取当前用户已生成的 API Key
 async def get_api_key(user=Depends(get_current_user)):
     api_key = Users.get_user_api_key_by_id(user.id)
     if api_key:
