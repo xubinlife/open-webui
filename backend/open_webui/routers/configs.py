@@ -35,41 +35,41 @@ log = logging.getLogger(__name__)
 log.setLevel(SRC_LOG_LEVELS["MAIN"])
 
 
-############################
+# ##########################
 # ImportConfig
-############################
+# ##########################
 
 
+# 导入配置所需的表单载体
 class ImportConfigForm(BaseModel):
     config: dict
 
 
+# 覆盖当前配置为上传内容，仅管理员可用
 @router.post("/import", response_model=dict)
 async def import_config(form_data: ImportConfigForm, user=Depends(get_admin_user)):
     save_config(form_data.config)
     return get_config()
 
 
-############################
-# ExportConfig
-############################
-
-
+# 导出当前应用配置
 @router.get("/export", response_model=dict)
 async def export_config(user=Depends(get_admin_user)):
     return get_config()
 
 
-############################
+# ##########################
 # Connections Config
-############################
+# ##########################
 
 
+# 直接连接与基础模型缓存的开关配置
 class ConnectionsConfigForm(BaseModel):
     ENABLE_DIRECT_CONNECTIONS: bool
     ENABLE_BASE_MODELS_CACHE: bool
 
 
+# 读取当前连接相关配置
 @router.get("/connections", response_model=ConnectionsConfigForm)
 async def get_connections_config(request: Request, user=Depends(get_admin_user)):
     return {
@@ -78,6 +78,7 @@ async def get_connections_config(request: Request, user=Depends(get_admin_user))
     }
 
 
+# 更新连接相关配置项
 @router.post("/connections", response_model=ConnectionsConfigForm)
 async def set_connections_config(
     request: Request,
@@ -97,12 +98,14 @@ async def set_connections_config(
     }
 
 
+# OAuth 动态客户端注册表单
 class OAuthClientRegistrationForm(BaseModel):
     url: str
     client_id: str
     client_name: Optional[str] = None
 
 
+# 通过动态注册获取 OAuth 客户端信息，必要时按类型区分
 @router.post("/oauth/clients/register")
 async def register_oauth_client(
     request: Request,
@@ -134,11 +137,12 @@ async def register_oauth_client(
         )
 
 
-############################
+# ##########################
 # ToolServers Config
-############################
+# ##########################
 
 
+# 单个工具服务器连接配置，兼容 OpenAPI 与 MCP
 class ToolServerConnection(BaseModel):
     url: str
     path: str
@@ -151,10 +155,12 @@ class ToolServerConnection(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+# 工具服务器连接列表表单
 class ToolServersConfigForm(BaseModel):
     TOOL_SERVER_CONNECTIONS: list[ToolServerConnection]
 
 
+# 读取当前注册的工具服务器配置
 @router.get("/tool_servers", response_model=ToolServersConfigForm)
 async def get_tool_servers_config(request: Request, user=Depends(get_admin_user)):
     return {
@@ -162,6 +168,7 @@ async def get_tool_servers_config(request: Request, user=Depends(get_admin_user)
     }
 
 
+# 更新工具服务器列表，并根据配置动态注册/移除 OAuth 客户端
 @router.post("/tool_servers", response_model=ToolServersConfigForm)
 async def set_tool_servers_config(
     request: Request,
@@ -215,6 +222,7 @@ async def set_tool_servers_config(
     }
 
 
+# 校验工具服务器配置可用性，必要时探测 OAuth2.1 元数据
 @router.post("/tool_servers/verify")
 async def verify_tool_servers_config(
     request: Request, form_data: ToolServerConnection, user=Depends(get_admin_user)

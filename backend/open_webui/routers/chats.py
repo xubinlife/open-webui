@@ -30,11 +30,12 @@ log.setLevel(SRC_LOG_LEVELS["MODELS"])
 
 router = APIRouter()
 
-############################
+# ##########################
 # GetChatList
-############################
+# ##########################
 
 
+# 获取当前用户的会话列表，可分页并支持返回收藏夹
 @router.get("/", response_model=list[ChatTitleIdResponse])
 @router.get("/list", response_model=list[ChatTitleIdResponse])
 def get_session_user_chat_list(
@@ -66,11 +67,12 @@ def get_session_user_chat_list(
         )
 
 
-############################
+# ##########################
 # DeleteAllChats
-############################
+# ##########################
 
 
+# 删除当前用户所有聊天记录，需具备对应权限
 @router.delete("/", response_model=bool)
 async def delete_all_user_chats(request: Request, user=Depends(get_verified_user)):
 
@@ -86,11 +88,12 @@ async def delete_all_user_chats(request: Request, user=Depends(get_verified_user
     return result
 
 
-############################
+# ##########################
 # GetUserChatList
-############################
+# ##########################
 
 
+# 管理员根据用户 ID 查看聊天列表，支持查询与排序
 @router.get("/list/user/{user_id}", response_model=list[ChatTitleIdResponse])
 async def get_user_chat_list_by_user_id(
     user_id: str,
@@ -125,11 +128,12 @@ async def get_user_chat_list_by_user_id(
     )
 
 
-############################
+# ##########################
 # CreateNewChat
-############################
+# ##########################
 
 
+# 新建聊天会话，返回包含元数据的响应
 @router.post("/new", response_model=Optional[ChatResponse])
 async def create_new_chat(form_data: ChatForm, user=Depends(get_verified_user)):
     try:
@@ -142,11 +146,12 @@ async def create_new_chat(form_data: ChatForm, user=Depends(get_verified_user)):
         )
 
 
-############################
+# ##########################
 # ImportChats
-############################
+# ##########################
 
 
+# 批量导入聊天会话（包含消息内容）
 @router.post("/import", response_model=list[ChatResponse])
 async def import_chats(form_data: ChatsImportForm, user=Depends(get_verified_user)):
     try:
@@ -159,11 +164,12 @@ async def import_chats(form_data: ChatsImportForm, user=Depends(get_verified_use
         )
 
 
-############################
+# ##########################
 # GetChats
-############################
+# ##########################
 
 
+# 搜索当前用户的聊天会话标题或内容关键词
 @router.get("/search", response_model=list[ChatTitleIdResponse])
 def search_user_chats(
     text: str, page: Optional[int] = None, user=Depends(get_verified_user)
@@ -213,6 +219,7 @@ async def get_chats_by_folder_id(folder_id: str, user=Depends(get_verified_user)
     ]
 
 
+# 根据文件夹 ID 分页获取聊天列表
 @router.get("/folder/{folder_id}/list")
 async def get_chat_list_by_folder_id(
     folder_id: str, page: Optional[int] = 1, user=Depends(get_verified_user)
@@ -235,11 +242,12 @@ async def get_chat_list_by_folder_id(
         )
 
 
-############################
+# ##########################
 # GetPinnedChats
-############################
+# ##########################
 
 
+# 获取用户置顶的聊天列表
 @router.get("/pinned", response_model=list[ChatTitleIdResponse])
 async def get_user_pinned_chats(user=Depends(get_verified_user)):
     return [
@@ -248,11 +256,12 @@ async def get_user_pinned_chats(user=Depends(get_verified_user)):
     ]
 
 
-############################
+# ##########################
 # GetChats
-############################
+# ##########################
 
 
+# 获取当前用户的全部聊天详细记录
 @router.get("/all", response_model=list[ChatResponse])
 async def get_user_chats(user=Depends(get_verified_user)):
     return [
@@ -261,11 +270,12 @@ async def get_user_chats(user=Depends(get_verified_user)):
     ]
 
 
-############################
+# ##########################
 # GetArchivedChats
-############################
+# ##########################
 
 
+# 获取当前用户的所有已归档聊天
 @router.get("/all/archived", response_model=list[ChatResponse])
 async def get_user_archived_chats(user=Depends(get_verified_user)):
     return [
@@ -274,11 +284,12 @@ async def get_user_archived_chats(user=Depends(get_verified_user)):
     ]
 
 
-############################
+# ##########################
 # GetAllTags
-############################
+# ##########################
 
 
+# 获取当前用户所有标签
 @router.get("/all/tags", response_model=list[TagModel])
 async def get_all_user_tags(user=Depends(get_verified_user)):
     try:
@@ -291,11 +302,12 @@ async def get_all_user_tags(user=Depends(get_verified_user)):
         )
 
 
-############################
+# ##########################
 # GetAllChatsInDB
-############################
+# ##########################
 
 
+# 管理员导出数据库中全部聊天
 @router.get("/all/db", response_model=list[ChatResponse])
 async def get_all_user_chats_in_db(user=Depends(get_admin_user)):
     if not ENABLE_ADMIN_EXPORT:
@@ -306,11 +318,12 @@ async def get_all_user_chats_in_db(user=Depends(get_admin_user)):
     return [ChatResponse(**chat.model_dump()) for chat in Chats.get_chats()]
 
 
-############################
+# ##########################
 # GetArchivedChats
-############################
+# ##########################
 
 
+# 分页获取当前用户的归档聊天列表，支持过滤与排序
 @router.get("/archived", response_model=list[ChatTitleIdResponse])
 async def get_archived_session_user_chat_list(
     page: Optional[int] = None,
@@ -346,31 +359,34 @@ async def get_archived_session_user_chat_list(
     return chat_list
 
 
-############################
+# ##########################
 # ArchiveAllChats
-############################
+# ##########################
 
 
+# 将当前用户全部会话批量归档
 @router.post("/archive/all", response_model=bool)
 async def archive_all_chats(user=Depends(get_verified_user)):
     return Chats.archive_all_chats_by_user_id(user.id)
 
 
-############################
+# ##########################
 # UnarchiveAllChats
-############################
+# ##########################
 
 
+# 取消当前用户全部会话的归档状态
 @router.post("/unarchive/all", response_model=bool)
 async def unarchive_all_chats(user=Depends(get_verified_user)):
     return Chats.unarchive_all_chats_by_user_id(user.id)
 
 
-############################
+# ##########################
 # GetSharedChatById
-############################
+# ##########################
 
 
+# 根据分享 ID（或管理员直接用聊天 ID）获取共享聊天内容
 @router.get("/share/{share_id}", response_model=Optional[ChatResponse])
 async def get_shared_chat_by_id(share_id: str, user=Depends(get_verified_user)):
     if user.role == "pending":

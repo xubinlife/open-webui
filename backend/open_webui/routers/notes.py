@@ -30,6 +30,7 @@ router = APIRouter()
 ############################
 
 
+# 获取用户可写的所有笔记列表，同时校验权限
 @router.get("/", response_model=list[NoteUserResponse])
 async def get_notes(request: Request, user=Depends(get_verified_user)):
 
@@ -54,6 +55,7 @@ async def get_notes(request: Request, user=Depends(get_verified_user)):
     return notes
 
 
+# 仅包含标题和时间信息的笔记列表项响应
 class NoteTitleIdResponse(BaseModel):
     id: str
     title: str
@@ -61,6 +63,7 @@ class NoteTitleIdResponse(BaseModel):
     created_at: int
 
 
+# 分页获取可写笔记的标题列表，非管理员需具备 notes 权限
 @router.get("/list", response_model=list[NoteTitleIdResponse])
 async def get_note_list(
     request: Request, page: Optional[int] = None, user=Depends(get_verified_user)
@@ -94,6 +97,7 @@ async def get_note_list(
 ############################
 
 
+# 创建新笔记，受用户权限控制
 @router.post("/create", response_model=Optional[NoteModel])
 async def create_new_note(
     request: Request, form_data: NoteForm, user=Depends(get_verified_user)
@@ -122,6 +126,7 @@ async def create_new_note(
 ############################
 
 
+# 获取单条笔记详情，校验访问控制与所有权
 @router.get("/{id}", response_model=Optional[NoteModel])
 async def get_note_by_id(request: Request, id: str, user=Depends(get_verified_user)):
     if user.role != "admin" and not has_permission(
@@ -154,6 +159,7 @@ async def get_note_by_id(request: Request, id: str, user=Depends(get_verified_us
 ############################
 
 
+# 更新笔记内容和访问控制，并广播变更
 @router.post("/{id}/update", response_model=Optional[NoteModel])
 async def update_note_by_id(
     request: Request, id: str, form_data: NoteForm, user=Depends(get_verified_user)
@@ -213,6 +219,7 @@ async def update_note_by_id(
 ############################
 
 
+# 删除笔记，确保仅管理员或有写权限的用户可执行
 @router.delete("/{id}/delete", response_model=bool)
 async def delete_note_by_id(request: Request, id: str, user=Depends(get_verified_user)):
     if user.role != "admin" and not has_permission(

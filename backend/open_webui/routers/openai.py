@@ -63,6 +63,7 @@ log.setLevel(SRC_LOG_LEVELS["OPENAI"])
 ##########################################
 
 
+# 异步发送 GET 请求用于拉取模型列表，可选择带上鉴权和用户透传头
 async def send_get_request(url, key=None, user: UserModel = None):
     timeout = aiohttp.ClientTimeout(total=AIOHTTP_CLIENT_TIMEOUT_MODEL_LIST)
     try:
@@ -86,6 +87,7 @@ async def send_get_request(url, key=None, user: UserModel = None):
         return None
 
 
+# 统一关闭 aiohttp 响应和会话，避免长连接占用资源
 async def cleanup_response(
     response: Optional[aiohttp.ClientResponse],
     session: Optional[aiohttp.ClientSession],
@@ -97,9 +99,7 @@ async def cleanup_response(
 
 
 def openai_reasoning_model_handler(payload):
-    """
-    Handle reasoning model specific parameters
-    """
+    """处理推理模型的特殊参数与角色转换"""
     if "max_tokens" in payload:
         # Convert "max_tokens" to "max_completion_tokens" for all reasoning models
         payload["max_completion_tokens"] = payload["max_tokens"]
@@ -117,6 +117,7 @@ def openai_reasoning_model_handler(payload):
     return payload
 
 
+# 根据后端配置拼装请求头与 Cookie，支持多种鉴权模式与用户信息透传
 async def get_headers_and_cookies(
     request: Request,
     url,
@@ -183,10 +184,7 @@ async def get_headers_and_cookies(
 
 
 def get_microsoft_entra_id_access_token():
-    """
-    Get Microsoft Entra ID access token using DefaultAzureCredential for Azure OpenAI.
-    Returns the token string or None if authentication fails.
-    """
+    """通过 DefaultAzureCredential 获取 Microsoft Entra ID 访问令牌"""
     try:
         token_provider = get_bearer_token_provider(
             DefaultAzureCredential(), "https://cognitiveservices.azure.com/.default"
@@ -207,6 +205,7 @@ router = APIRouter()
 
 
 @router.get("/config")
+# 获取 OpenAI 集成相关配置，仅限管理员访问
 async def get_config(request: Request, user=Depends(get_admin_user)):
     return {
         "ENABLE_OPENAI_API": request.app.state.config.ENABLE_OPENAI_API,
@@ -217,6 +216,7 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
 
 
 class OpenAIConfigForm(BaseModel):
+    # 后台更新 OpenAI 配置的表单结构，前端提交时使用
     ENABLE_OPENAI_API: Optional[bool] = None
     OPENAI_API_BASE_URLS: list[str]
     OPENAI_API_KEYS: list[str]
@@ -224,6 +224,7 @@ class OpenAIConfigForm(BaseModel):
 
 
 @router.post("/config/update")
+# 更新 OpenAI 集成配置并对 key/url 长度做自动补齐，仅管理员可调用
 async def update_config(
     request: Request, form_data: OpenAIConfigForm, user=Depends(get_admin_user)
 ):
@@ -268,6 +269,7 @@ async def update_config(
 
 
 @router.post("/audio/speech")
+# 代理 OpenAI 语音合成接口，缓存相同请求的音频结果
 async def speech(request: Request, user=Depends(get_verified_user)):
     idx = None
     try:
@@ -342,6 +344,7 @@ async def speech(request: Request, user=Depends(get_verified_user)):
         raise HTTPException(status_code=401, detail=ERROR_MESSAGES.OPENAI_NOT_FOUND)
 
 
+# 并发拉取所有后端的模型列表，结合配置决定是否伪造列表或跳过
 async def get_all_models_responses(request: Request, user: UserModel) -> list:
     if not request.app.state.config.ENABLE_OPENAI_API:
         return []
@@ -455,8 +458,8 @@ async def get_all_models_responses(request: Request, user: UserModel) -> list:
     return responses
 
 
+# 根据访问控制过滤普通用户可见的模型
 async def get_filtered_models(models, user):
-    # Filter models based on user access control
     filtered_models = []
     for model in models.get("data", []):
         model_info = Models.get_model_by_id(model["id"])
@@ -472,6 +475,7 @@ async def get_filtered_models(models, user):
     ttl=MODELS_CACHE_TTL,
     key=lambda _, user: f"openai_all_models_{user.id}" if user else "openai_all_models",
 )
+# 获取合并后的模型列表并缓存，兼容 OpenAI/自定义/前缀等多种配置
 async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
     log.info("get_all_models()")
 
@@ -540,6 +544,7 @@ async def get_all_models(request: Request, user: UserModel) -> dict[str, list]:
 
 @router.get("/models")
 @router.get("/models/{url_idx}")
+# 获取指定后端或全部后端的模型列表，必要时过滤仅保留支持的 OpenAI 模型
 async def get_models(
     request: Request, url_idx: Optional[int] = None, user=Depends(get_verified_user)
 ):
@@ -628,6 +633,7 @@ async def get_models(
 
 
 class ConnectionVerificationForm(BaseModel):
+    # 校验连接可用性的表单，包含 URL/Key 及可选配置
     url: str
     key: str
 
@@ -635,6 +641,7 @@ class ConnectionVerificationForm(BaseModel):
 
 
 @router.post("/verify")
+# 调用目标后端的 /models 接口验证连通性，支持 Azure 与普通 OpenAI 兼容后端
 async def verify_connection(
     request: Request,
     form_data: ConnectionVerificationForm,
@@ -720,6 +727,7 @@ async def verify_connection(
             )
 
 
+# 返回 Azure OpenAI 对应版本支持的参数白名单
 def get_azure_allowed_params(api_version: str) -> set[str]:
     allowed_params = {
         "messages",
@@ -762,10 +770,12 @@ def get_azure_allowed_params(api_version: str) -> set[str]:
     return allowed_params
 
 
+# 判断是否为需要特殊处理的 o 系列推理模型
 def is_openai_reasoning_model(model: str) -> bool:
     return model.lower().startswith(("o1", "o3", "o4", "gpt-5"))
 
 
+# 将请求转换为 Azure OpenAI 部署格式，同时过滤不被支持的参数
 def convert_to_azure_payload(url, payload: dict, api_version: str):
     model = payload.get("model", "")
 
@@ -794,6 +804,7 @@ def convert_to_azure_payload(url, payload: dict, api_version: str):
 
 
 @router.post("/chat/completions")
+# 统一代理 chat/completions 请求，处理模型权限、管道、Azure 与流式返回
 async def generate_chat_completion(
     request: Request,
     form_data: dict,
@@ -972,18 +983,8 @@ async def generate_chat_completion(
             await cleanup_response(r, session)
 
 
+# 代理 OpenAI 兼容的 embeddings 接口，按模型归属选择后端并保留流式处理
 async def embeddings(request: Request, form_data: dict, user):
-    """
-    Calls the embeddings endpoint for OpenAI-compatible providers.
-
-    Args:
-        request (Request): The FastAPI request context.
-        form_data (dict): OpenAI-compatible embeddings payload.
-        user (UserModel): The authenticated user.
-
-    Returns:
-        dict: OpenAI-compatible embeddings response.
-    """
     idx = 0
     # Prepare payload/body
     body = json.dumps(form_data)
@@ -1055,10 +1056,8 @@ async def embeddings(request: Request, form_data: dict, user):
 
 
 @router.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+# 兜底代理 OpenAI 兼容接口（已不建议使用），直接转发任意路径请求
 async def proxy(path: str, request: Request, user=Depends(get_verified_user)):
-    """
-    Deprecated: proxy all requests to OpenAI API
-    """
 
     body = await request.body()
 

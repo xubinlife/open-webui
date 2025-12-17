@@ -51,6 +51,7 @@ router = APIRouter()
 ##################################
 
 
+# 获取当前任务相关模型与提示配置，供前端呈现
 @router.get("/config")
 async def get_task_config(request: Request, user=Depends(get_verified_user)):
     return {
@@ -73,6 +74,7 @@ async def get_task_config(request: Request, user=Depends(get_verified_user)):
     }
 
 
+# 任务配置表单，允许管理员更新生成模型及提示模板
 class TaskConfigForm(BaseModel):
     TASK_MODEL: Optional[str]
     TASK_MODEL_EXTERNAL: Optional[str]
@@ -92,6 +94,7 @@ class TaskConfigForm(BaseModel):
     VOICE_MODE_PROMPT_TEMPLATE: Optional[str]
 
 
+# 更新任务生成相关配置，仅管理员可操作
 @router.post("/config/update")
 async def update_task_config(
     request: Request, form_data: TaskConfigForm, user=Depends(get_admin_user)
@@ -163,6 +166,7 @@ async def update_task_config(
     }
 
 
+# 根据对话消息生成标题，用于会话列表显示
 @router.post("/title/completions")
 async def generate_title(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -247,6 +251,7 @@ async def generate_title(
         )
 
 
+# 生成跟进问题建议，支持管理员与普通用户
 @router.post("/follow_up/completions")
 async def generate_follow_ups(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -320,6 +325,7 @@ async def generate_follow_ups(
         )
 
 
+# 为对话内容生成标签，方便检索
 @router.post("/tags/completions")
 async def generate_chat_tags(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -393,6 +399,7 @@ async def generate_chat_tags(
         )
 
 
+# 将对话转化为图像生成提示词
 @router.post("/image_prompt/completions")
 async def generate_image_prompt(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -459,6 +466,7 @@ async def generate_image_prompt(
         )
 
 
+# 生成检索查询语句，用于搜索或向量检索
 @router.post("/queries/completions")
 async def generate_queries(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -543,6 +551,7 @@ async def generate_queries(
         )
 
 
+# 根据输入上下文补全文本，常用于输入联想
 @router.post("/auto/completions")
 async def generate_autocompletion(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -629,6 +638,7 @@ async def generate_autocompletion(
         )
 
 
+# 将文本情绪转换为表情符号结果
 @router.post("/emoji/completions")
 async def generate_emoji(
     request: Request, form_data: dict, user=Depends(get_verified_user)
@@ -697,6 +707,7 @@ async def generate_emoji(
         )
 
 
+# 生成 MOA 模式下的回复，结合多模型聚合策略
 @router.post("/moa/completions")
 async def generate_moa_response(
     request: Request, form_data: dict, user=Depends(get_verified_user)

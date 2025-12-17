@@ -62,6 +62,7 @@ router = APIRouter()
 
 
 # TODO: Optimize this function to use the knowledge_file table for faster lookups.
+# 校验用户是否对指定文件拥有某种权限（读/写），通过知识库和群组信息综合判断
 def has_access_to_file(
     file_id: Optional[str], access_type: str, user=Depends(get_verified_user)
 ) -> bool:
@@ -99,6 +100,7 @@ def has_access_to_file(
 ############################
 
 
+# 处理上传文件后的后续动作（转录、向量化等），根据 MIME 类型选择处理流程
 def process_uploaded_file(request, file, file_path, file_item, file_metadata, user):
     try:
         if file.content_type:
@@ -150,6 +152,7 @@ def process_uploaded_file(request, file, file_path, file_item, file_metadata, us
 
 
 @router.post("/", response_model=FileModelResponse)
+# 文件上传入口，支持选择是否立即处理及后台处理
 def upload_file(
     request: Request,
     background_tasks: BackgroundTasks,
@@ -170,6 +173,7 @@ def upload_file(
     )
 
 
+# 实际处理上传逻辑：保存文件、解析元数据并触发处理或后台任务
 def upload_file_handler(
     request: Request,
     file: UploadFile = File(...),
@@ -291,6 +295,7 @@ def upload_file_handler(
 ############################
 
 
+# 列出当前用户可见的文件列表，管理员返回全部
 @router.get("/", response_model=list[FileModelResponse])
 async def list_files(user=Depends(get_verified_user), content: bool = Query(True)):
     if user.role == "admin":
@@ -311,6 +316,7 @@ async def list_files(user=Depends(get_verified_user), content: bool = Query(True
 ############################
 
 
+# 按文件名通配符搜索可访问的文件，可选择是否包含内容字段
 @router.get("/search", response_model=list[FileModelResponse])
 async def search_files(
     filename: str = Query(
@@ -353,6 +359,7 @@ async def search_files(
 ############################
 
 
+# 管理员删除所有文件及向量库索引
 @router.delete("/all")
 async def delete_all_files(user=Depends(get_admin_user)):
     result = Files.delete_all_files()
@@ -380,6 +387,7 @@ async def delete_all_files(user=Depends(get_admin_user)):
 ############################
 
 
+# 按 ID 获取文件详情，包含权限校验
 @router.get("/{id}", response_model=Optional[FileModel])
 async def get_file_by_id(id: str, user=Depends(get_verified_user)):
     file = Files.get_file_by_id(id)
@@ -403,6 +411,7 @@ async def get_file_by_id(id: str, user=Depends(get_verified_user)):
         )
 
 
+# 获取文件处理状态，可选择 SSE 流式查看处理进度
 @router.get("/{id}/process/status")
 async def get_file_process_status(
     id: str, stream: bool = Query(False), user=Depends(get_verified_user)
@@ -465,6 +474,7 @@ async def get_file_process_status(
 ############################
 
 
+# 获取文件存储的文本内容字段
 @router.get("/{id}/data/content")
 async def get_file_data_content_by_id(id: str, user=Depends(get_verified_user)):
     file = Files.get_file_by_id(id)
@@ -494,9 +504,11 @@ async def get_file_data_content_by_id(id: str, user=Depends(get_verified_user)):
 
 
 class ContentForm(BaseModel):
+    # 新内容载体，用于更新文件的文本数据
     content: str
 
 
+# 更新文件的文本内容并重新触发向量处理
 @router.post("/{id}/data/content/update")
 async def update_file_data_content_by_id(
     request: Request, id: str, form_data: ContentForm, user=Depends(get_verified_user)
@@ -538,6 +550,7 @@ async def update_file_data_content_by_id(
 ############################
 
 
+# 下载或预览文件原始二进制内容，根据 attachment 控制 disposition
 @router.get("/{id}/content")
 async def get_file_content_by_id(
     id: str, user=Depends(get_verified_user), attachment: bool = Query(False)
@@ -608,6 +621,7 @@ async def get_file_content_by_id(
         )
 
 
+# 仅管理员可访问的 HTML 文件下载接口
 @router.get("/{id}/content/html")
 async def get_html_file_content_by_id(id: str, user=Depends(get_verified_user)):
     file = Files.get_file_by_id(id)
@@ -657,6 +671,7 @@ async def get_html_file_content_by_id(id: str, user=Depends(get_verified_user)):
         )
 
 
+# 兼容旧路径的下载接口，强制以附件形式返回
 @router.get("/{id}/content/{file_name}")
 async def get_file_content_by_id(id: str, user=Depends(get_verified_user)):
     file = Files.get_file_by_id(id)
@@ -719,6 +734,7 @@ async def get_file_content_by_id(id: str, user=Depends(get_verified_user)):
 ############################
 
 
+# 删除指定文件，同时清理存储与向量索引
 @router.delete("/{id}")
 async def delete_file_by_id(id: str, user=Depends(get_verified_user)):
     file = Files.get_file_by_id(id)

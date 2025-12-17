@@ -40,6 +40,7 @@ router = APIRouter()
 
 
 def set_image_model(request: Request, model: str):
+    # 设置当前图像生成模型，并在自动1111场景下同步远端选项
     log.info(f"Setting image model to {model}")
     request.app.state.config.IMAGE_GENERATION_MODEL = model
     if request.app.state.config.IMAGE_GENERATION_ENGINE in ["", "automatic1111"]:
@@ -65,6 +66,7 @@ def set_image_model(request: Request, model: str):
 
 
 def get_image_model(request):
+    # 根据引擎类型返回实际生效的图像模型，必要时从后端查询
     if request.app.state.config.IMAGE_GENERATION_ENGINE == "openai":
         return (
             request.app.state.config.IMAGE_GENERATION_MODEL
@@ -100,6 +102,7 @@ def get_image_model(request):
 
 
 class ImagesConfig(BaseModel):
+    # 图像生成与编辑的配置模型
     ENABLE_IMAGE_GENERATION: bool
     ENABLE_IMAGE_PROMPT_GENERATION: bool
 
@@ -144,6 +147,7 @@ class ImagesConfig(BaseModel):
 
 @router.get("/config", response_model=ImagesConfig)
 async def get_config(request: Request, user=Depends(get_admin_user)):
+    # 管理员获取当前图像生成与编辑的配置项
     return {
         "ENABLE_IMAGE_GENERATION": request.app.state.config.ENABLE_IMAGE_GENERATION,
         "ENABLE_IMAGE_PROMPT_GENERATION": request.app.state.config.ENABLE_IMAGE_PROMPT_GENERATION,
@@ -185,6 +189,7 @@ async def get_config(request: Request, user=Depends(get_admin_user)):
 async def update_config(
     request: Request, form_data: ImagesConfig, user=Depends(get_admin_user)
 ):
+    # 更新图像生成与编辑配置，校验尺寸与模型选择
     request.app.state.config.ENABLE_IMAGE_GENERATION = form_data.ENABLE_IMAGE_GENERATION
 
     # Create Image
@@ -328,6 +333,7 @@ async def update_config(
 
 
 def get_automatic1111_api_auth(request: Request):
+    # 构造自动1111请求所需的基础认证头
     if request.app.state.config.AUTOMATIC1111_API_AUTH is None:
         return ""
     else:
@@ -341,6 +347,7 @@ def get_automatic1111_api_auth(request: Request):
 
 @router.get("/config/url/verify")
 async def verify_url(request: Request, user=Depends(get_admin_user)):
+    # 根据选定引擎校验对应服务是否可访问，不通时关闭功能并返回错误
     if request.app.state.config.IMAGE_GENERATION_ENGINE == "automatic1111":
         try:
             r = requests.get(
@@ -374,6 +381,7 @@ async def verify_url(request: Request, user=Depends(get_admin_user)):
 
 @router.get("/models")
 def get_models(request: Request, user=Depends(get_verified_user)):
+    # 根据当前图像生成引擎返回可用模型列表，必要时从服务端查询
     try:
         if request.app.state.config.IMAGE_GENERATION_ENGINE == "openai":
             return [
@@ -455,6 +463,7 @@ def get_models(request: Request, user=Depends(get_verified_user)):
 
 
 class CreateImageForm(BaseModel):
+    # 图像生成请求体，包含模型、提示词和可选的负面词与尺寸参数
     model: Optional[str] = None
     prompt: str
     size: Optional[str] = None
@@ -466,6 +475,7 @@ GenerateImageForm = CreateImageForm  # Alias for backward compatibility
 
 
 def get_image_data(data: str, headers=None):
+    # 兼容 URL 与 base64 的图片读取方法，返回内容与 MIME 类型
     try:
         if data.startswith("http://") or data.startswith("https://"):
             if headers:
@@ -495,6 +505,7 @@ def get_image_data(data: str, headers=None):
 
 
 def upload_image(request, image_data, content_type, metadata, user):
+    # 将图像内容包装为 UploadFile 并通过文件路由上传，返回访问 URL
     image_format = mimetypes.guess_extension(content_type)
     file = UploadFile(
         file=io.BytesIO(image_data),
@@ -520,6 +531,7 @@ async def image_generations(
     form_data: CreateImageForm,
     user=Depends(get_verified_user),
 ):
+    # 按提示词与模型生成图像，对接不同后端并上传结果
     # if IMAGE_SIZE = 'auto', default WidthxHeight to the 512x512 default
     # This is only relevant when the user has set IMAGE_SIZE to 'auto' with an
     # image model other than gpt-image-1, which is warned about on settings save
@@ -769,6 +781,7 @@ async def image_generations(
 
 
 class EditImageForm(BaseModel):
+    # 图像编辑请求体，支持多张原图、负面提示与尺寸控制
     image: str | list[str]  # base64-encoded image(s) or URL(s)
     prompt: str
     model: Optional[str] = None
@@ -783,6 +796,7 @@ async def image_edits(
     form_data: EditImageForm,
     user=Depends(get_verified_user),
 ):
+    # 根据编辑参数调用对应引擎，对原始图像进行修改并保存输出
     size = None
     width, height = None, None
     if (

@@ -39,6 +39,7 @@ log.setLevel(SRC_LOG_LEVELS["MAIN"])
 router = APIRouter()
 
 
+# 根据工具 ID 获取已加载的模块，默认从缓存或数据库读取
 def get_tool_module(request, tool_id, load_from_db=True):
     """
     Get the tool module by its ID.
@@ -52,6 +53,7 @@ def get_tool_module(request, tool_id, load_from_db=True):
 ############################
 
 
+# 获取当前用户可用的工具及工具服务器列表，包含本地和远程来源
 @router.get("/", response_model=list[ToolUserResponse])
 async def get_tools(request: Request, user=Depends(get_verified_user)):
     tools = []
@@ -157,6 +159,7 @@ async def get_tools(request: Request, user=Depends(get_verified_user)):
 ############################
 
 
+# 返回工具的精简列表，管理员可绕过权限校验
 @router.get("/list", response_model=list[ToolUserResponse])
 async def get_tool_list(user=Depends(get_verified_user)):
     if user.role == "admin" and BYPASS_ADMIN_ACCESS_CONTROL:
@@ -171,10 +174,12 @@ async def get_tool_list(user=Depends(get_verified_user)):
 ############################
 
 
+# 通过远程 URL 加载工具代码的表单
 class LoadUrlForm(BaseModel):
     url: HttpUrl
 
 
+# 将 GitHub 链接转换为原始文件地址，兼容目录与文件链接
 def github_url_to_raw_url(url: str) -> str:
     # Handle 'tree' (folder) URLs (add main.py at the end)
     m1 = re.match(r"https://github\.com/([^/]+)/([^/]+)/tree/([^/]+)/(.*)", url)
@@ -194,6 +199,7 @@ def github_url_to_raw_url(url: str) -> str:
     return url
 
 
+# 管理员通过 URL 导入工具脚本并存储
 @router.post("/load/url", response_model=Optional[dict])
 async def load_tool_from_url(
     request: Request, form_data: LoadUrlForm, user=Depends(get_admin_user)
@@ -246,6 +252,7 @@ async def load_tool_from_url(
 ############################
 
 
+# 导出所有工具定义与运行代码，便于备份或迁移
 @router.get("/export", response_model=list[ToolModel])
 async def export_tools(request: Request, user=Depends(get_verified_user)):
     if user.role != "admin" and not has_permission(
@@ -267,6 +274,7 @@ async def export_tools(request: Request, user=Depends(get_verified_user)):
 ############################
 
 
+# 创建新的工具记录，可同时保存源码
 @router.post("/create", response_model=Optional[ToolResponse])
 async def create_new_tools(
     request: Request,
@@ -337,6 +345,7 @@ async def create_new_tools(
 ############################
 
 
+# 获取指定 ID 的工具详情，校验用户是否有读取权限
 @router.get("/id/{id}", response_model=Optional[ToolModel])
 async def get_tools_by_id(id: str, user=Depends(get_verified_user)):
     tools = Tools.get_tool_by_id(id)
@@ -360,6 +369,7 @@ async def get_tools_by_id(id: str, user=Depends(get_verified_user)):
 ############################
 
 
+# 更新工具信息与代码内容，校验写入权限
 @router.post("/id/{id}/update", response_model=Optional[ToolModel])
 async def update_tools_by_id(
     request: Request,
@@ -423,6 +433,7 @@ async def update_tools_by_id(
 ############################
 
 
+# 删除工具记录及内存缓存，需具备写权限或管理员身份
 @router.delete("/id/{id}/delete", response_model=bool)
 async def delete_tools_by_id(
     request: Request, id: str, user=Depends(get_verified_user)
@@ -458,6 +469,7 @@ async def delete_tools_by_id(
 ############################
 
 
+# 获取工具的阀门默认配置
 @router.get("/id/{id}/valves", response_model=Optional[dict])
 async def get_tools_valves_by_id(id: str, user=Depends(get_verified_user)):
     tools = Tools.get_tool_by_id(id)
@@ -482,6 +494,7 @@ async def get_tools_valves_by_id(id: str, user=Depends(get_verified_user)):
 ############################
 
 
+# 获取工具阀门的 JSON Schema 规范
 @router.get("/id/{id}/valves/spec", response_model=Optional[dict])
 async def get_tools_valves_spec_by_id(
     request: Request, id: str, user=Depends(get_verified_user)
@@ -510,6 +523,7 @@ async def get_tools_valves_spec_by_id(
 ############################
 
 
+# 更新工具的默认阀门参数，校验写权限
 @router.post("/id/{id}/valves/update", response_model=Optional[dict])
 async def update_tools_valves_by_id(
     request: Request, id: str, form_data: dict, user=Depends(get_verified_user)
@@ -563,6 +577,7 @@ async def update_tools_valves_by_id(
 ############################
 
 
+# 获取当前用户针对工具的个性化阀门设置
 @router.get("/id/{id}/valves/user", response_model=Optional[dict])
 async def get_tools_user_valves_by_id(id: str, user=Depends(get_verified_user)):
     tools = Tools.get_tool_by_id(id)
@@ -582,6 +597,7 @@ async def get_tools_user_valves_by_id(id: str, user=Depends(get_verified_user)):
         )
 
 
+# 获取用户级阀门配置的 Schema，用于生成表单
 @router.get("/id/{id}/valves/user/spec", response_model=Optional[dict])
 async def get_tools_user_valves_spec_by_id(
     request: Request, id: str, user=Depends(get_verified_user)
@@ -605,6 +621,7 @@ async def get_tools_user_valves_spec_by_id(
         )
 
 
+# 更新用户级阀门配置
 @router.post("/id/{id}/valves/user/update", response_model=Optional[dict])
 async def update_tools_user_valves_by_id(
     request: Request, id: str, form_data: dict, user=Depends(get_verified_user)
